@@ -1,0 +1,5 @@
+port_angle_deg,dilution,seabed_salinity_psu,rise_height_m,impact_distance_m
+90.0,19.3,38.13,4.49,1.95
+60.0,21.4,37.97,4.01,3.16
+45.0,24.1,37.81,3.34,4.19
+30.0,29.3,37.58,2.36,5.41

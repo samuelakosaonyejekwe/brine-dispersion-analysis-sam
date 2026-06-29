@@ -1,0 +1,6 @@
+salinity_psu,temp_C,ref_density,model_density,error_pct,source
+0.0,25.0,997.05,997.05,-0.0,Pure water (CRC)
+35.0,15.0,1025.97,1025.97,0.0,EOS-80 (Millero & Poisson 1981)
+35.0,25.0,1023.34,1023.34,0.0,EOS-80
+38.0,20.0,1026.95,1027.05,0.01,EOS-80
+260.0,20.0,1200.0,1204.82,0.402,Saturated NaCl brine (CRC Handbook)

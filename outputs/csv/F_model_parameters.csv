@@ -1,0 +1,14 @@
+Parameter,Value
+Minimum time step,0.4 s
+CFL number,0.45
+Manning coefficient n,0.025 (0.022-0.04)
+Horizontal eddy viscosity,2.0 m2/s
+Smagorinsky constant,0.2
+Horizontal dispersion,1.0 m2/s
+Vertical diffusivity,0.0005 m2/s
+Gravity-current coefficient,12.0
+Background salinity,36.5 psu
+Background temperature,18.0 C
+RO brine salinity,68.0 psu
+Cavern brine salinity,250.0 psu
+Outfall depth,18.0 m
