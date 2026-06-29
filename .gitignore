@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Generated reports (rebuild with build_docx.py / build_answer_doc.py)
+*.docx
+
+# Third-party reference material (see validation/SOURCES.md for citations)
+reference_pdfs/
+
+# Generated / regeneratable outputs
+outputs/cache/
+outputs/logs/
+outputs/_backup_v1/
+outputs/pdf_reference_figures/
+outputs/results.pkl
+outputs/manifest.json
