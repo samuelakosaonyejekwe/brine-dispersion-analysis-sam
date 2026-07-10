@@ -343,14 +343,22 @@ def part_A_nearfield():
             # ---- rich 2-panel near-field figure: trajectory (coloured by
             #      salinity) + dilution/salinity vs distance ------------------
             fig, (axL, axR) = plt.subplots(1, 2, figsize=(13.0, 5.6), layout="constrained")
+            # The near-field solution depends on the flow through ONE port, so S1 and S3
+            # (both 300 m3/hr per port) are the same jet.  Say so on the figure rather
+            # than let two identical panels read as two independent results.
+            _twin = [o["id"] for o in C.SCENARIOS
+                     if o["id"] != sc["id"] and o["flow_m3hr"] / o["n_ports"] == per_port]
+            _same = (f"  -  identical to {', '.join(_twin)} (same flow per port)"
+                     if _twin else "")
+            _pl = "port" if sc["n_ports"] == 1 else "ports"
             fig.suptitle(f"Near-field behaviour - {bn}  |  {sc['flow_m3hr']} m3/hr, "
-                         f"{sc['n_ports']} port(s) = {per_port:.0f} m3/hr/port",
+                         f"{sc['n_ports']} {_pl} = {per_port:.0f} m3/hr/port{_same}",
                          color=viz.INK, fontweight="bold")
             # LEFT: trajectory in the water column, line coloured by salinity
             from matplotlib.collections import LineCollection
             smax = max(traj_store[(bn, sc["id"], ts["label"])].salinity.max()
                        for ts in C.TIDAL_STATES)
-            for ts in C.TIDAL_STATES:
+            for _ti, ts in enumerate(C.TIDAL_STATES):
                 r = traj_store[(bn, sc["id"], ts["label"])]
                 xx = np.hypot(r.x, r.y)
                 pts = np.array([xx, r.z]).T.reshape(-1, 1, 2)
@@ -363,8 +371,12 @@ def part_A_nearfield():
                                  color=tide_colors[ts["label"]], alpha=0.10)
                 axL.plot(xx[r.impact_index], r.z[r.impact_index], "v",
                          color=tide_colors[ts["label"]], ms=9, mec="#1b2a4a")
+                # The cavern jet lands within ~3-6 m of the port for all three tides, so
+                # labels pinned at the impact point collide.  Stack them vertically.
                 axL.annotate(f"{ts['label']} ({ts['velocity']} m/s)",
-                             (xx[-1], r.z[-1]), fontsize=8, color=tide_colors[ts["label"]])
+                             (xx[-1], r.z[-1]), xytext=(6, 6 + 12 * _ti),
+                             textcoords="offset points", fontsize=8,
+                             color=tide_colors[ts["label"]])
             axL.axhline(0, color="#8a6d3b", lw=2.0)
             axL.axhline(C.DIFFUSER["port_height_m"], color="#7b8fa3", ls=":", lw=1)
             axL.set_xlabel("Horizontal distance from port (m)")
@@ -394,11 +406,19 @@ def part_A_nearfield():
     fig, ax = viz.new_ax((8, 5.2), "Seabed dilution by scenario and tidal state (RO concentrate)",
                          "Tidal velocity (m/s)", "Seabed dilution (S/S0)")
     cols = {"S1": "#2a6f97", "S2": "#3a9278", "S3": "#d1495b"}
-    for sc in C.SCENARIOS:
-        sub = dfres[(dfres.brine == "RO concentrate") & (dfres.scenario == sc["id"])].sort_values("velocity_ms")
-        ax.plot(sub.velocity_ms, sub.dilution, "-o", color=cols[sc["id"]], lw=2.4, ms=8,
+    # S1 and S3 carry the same 300 m3/hr per port, so their curves lie on top of one
+    # another.  Drawing S3 first, wide and translucent, keeps S1 visible instead of
+    # leaving a legend entry for a line the reader cannot find.
+    for sid in ["S3", "S1", "S2"]:
+        sc = next(o for o in C.SCENARIOS if o["id"] == sid)
+        sub = dfres[(dfres.brine == "RO concentrate") & (dfres.scenario == sid)].sort_values("velocity_ms")
+        lw, ms, alpha = (7.0, 13, 0.35) if sid == "S3" else (2.4, 8, 1.0)
+        ax.plot(sub.velocity_ms, sub.dilution, "-o", color=cols[sid], lw=lw, ms=ms, alpha=alpha,
                 label=f"{sc['id']} ({sc['flow_m3hr']} m3/hr, {sc['n_ports']}p)")
-    ax.legend(title="Scenario")
+    ax.legend(title="Scenario", loc="upper left")
+    ax.annotate("S1 and S3 coincide: both discharge 300 m3/hr per port",
+                xy=(0.98, 0.02), xycoords="axes fraction", fontsize=8,
+                ha="right", va="bottom", color=viz.INK)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/A_scenario_comparison.png"),
                "Seabed initial dilution by flow scenario and tidal state.", sec)
     return dfres, traj_store, diff
@@ -667,13 +687,24 @@ def part_C_medium(hydro_all):
     cum = np.concatenate([[0], np.cumsum(fr)])
     cols = plt.cm.viridis(np.linspace(0.1, 0.9, len(fr)))
     xs = np.linspace(0, 1, len(depths))
+    # LayerScheme.fractions is ordered bed -> surface, so L1 is the thin bed cell.
+    # The y axis is depth below surface, hence layer k spans (1 - cum[k+1]) to
+    # (1 - cum[k]).  Stacking cum[k] downward from the surface drew the column
+    # upside down, putting the 1% bed layer at the free surface.
     for k in range(len(fr)):
-        lo = cum[k] * depths; hi = cum[k + 1] * depths
-        ax.fill_between(xs, lo, hi, color=cols[k], alpha=0.8,
-                        label=f"L{k+1} ({fr[k]*100:.0f}%)" if k in (0, len(fr)-1) else None)
+        lo = (1.0 - cum[k + 1]) * depths; hi = (1.0 - cum[k]) * depths
+        if k == 0:
+            lbl = f"L1 (bed, {fr[0] * 100:.0f}%)"
+        elif k == len(fr) - 1:
+            lbl = f"L{len(fr)} (surface, {fr[-1] * 100:.0f}%)"
+        else:
+            lbl = None
+        ax.fill_between(xs, lo, hi, color=cols[k], alpha=0.8, label=lbl)
     ax.invert_yaxis(); ax.legend(fontsize=8, loc="lower right")
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/C_sigma_layers.png"),
-               "Variation of the terrain-following sigma layers with water depth (9-layer scheme).", sec)
+               "Terrain-following sigma layers versus water depth (9-layer scheme). Layers are "
+               "numbered from the seabed upward, so L1 is the thin bed cell that resolves the "
+               "dense bottom plume and L9 is the thick surface cell.", sec)
 
     # --- layer-resolution sensitivity (4 / 9 / 14) at full flow, neap -------
     sens = {}
@@ -1005,10 +1036,12 @@ def part_G_csv_plots():
             lw, alpha = (5.0, 0.35) if sid == "S3" else (2.0, 1.0)
             ax.plot(sub.velocity_ms, sub.dilution, styles[bn], color=cols[sid],
                     lw=lw, alpha=alpha, label=f"{short[bn]} {sid}")
+    # Keep the note clear of the legend: "best" placement puts the legend top-left,
+    # which is where the annotation used to be drawn, leaving it unreadable.
+    ax.legend(fontsize=8, ncol=2, loc="upper left")
     ax.annotate("S1 and S3 coincide: both discharge 300 m3/hr per port",
-                xy=(0.02, 0.97), xycoords="axes fraction", fontsize=8,
-                va="top", color=viz.INK)
-    ax.legend(fontsize=8, ncol=2)
+                xy=(0.98, 0.02), xycoords="axes fraction", fontsize=8,
+                ha="right", va="bottom", color=viz.INK)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/G_dilution_vs_velocity.png"),
                "Seabed dilution as a function of tidal velocity for each brine type and scenario. "
                "S1 and S3 coincide because dilution is set by the per-port flow (300 m3/hr in both), "
@@ -1167,19 +1200,34 @@ def part_H_recirculation():
     # on the same basis as the per-current tables (1A/1B/1C), which report the maximum.
     fig, ax = viz.new_ax((7.6, 5), "Maximum salinity rise at intake vs outfall distance from shore",
                          "Outfall distance from shore (m)", "Maximum salinity rise at intake (ppt)")
-    cmap = {"northward 0.25 m/s": "#2a6f97", "southward 0.25 m/s": "#3a9278",
-            "weak southward 0.05 m/s": "#d1495b"}
+    # Give every series its own colour.  Sharing one colour per current and relying
+    # on solid-vs-dashed to separate the brines made the six legend swatches read as
+    # three: cool hues are now the RO concentrate, warm hues the cavern brine.
+    cmap = {("RO concentrate", "northward 0.25 m/s"): "#12355b",
+            ("RO concentrate", "southward 0.25 m/s"): "#1b9aaa",
+            ("RO concentrate", "weak southward 0.05 m/s"): "#5fbb63",
+            ("Saturated cavern brine", "northward 0.25 m/s"): "#7b2cbf",
+            ("Saturated cavern brine", "southward 0.25 m/s"): "#f08c00",
+            ("Saturated cavern brine", "weak southward 0.05 m/s"): "#c1121f"}
     style = {"RO concentrate": "-o", "Saturated cavern brine": "--s"}
     for bl, _bv in brines:
         for cl, sp, brg in currents:
-            sub = dfr[(dfr.current == cl) & (dfr.brine == bl)]
+            sub = dfr[(dfr.current == cl) & (dfr.brine == bl)].sort_values("outfall_dist_m")
             # a zero rise cannot be drawn on a log axis; floor it at the plot bottom
             y = sub.rise_max_ppt.clip(lower=1e-4)
-            ax.plot(sub.outfall_dist_m, y, style[bl], color=cmap[cl], lw=2.2,
+            ax.plot(sub.outfall_dist_m, y, style[bl], color=cmap[(bl, cl)], lw=2.0, ms=5,
                     label=f"{'RO' if bl.startswith('RO') else 'Cavern'} - {cl}")
     ax.set_yscale("log")
-    ax.axhline(crit, color="#7b5ea7", ls="--", lw=1.8, label=f"{crit} ppt recirculation limit")
-    ax.legend(fontsize=7, ncol=2)
+    ax.axhline(crit, color="#333333", ls=":", lw=1.8, label=f"{crit} ppt recirculation limit")
+    # Headroom above the worst curve so the legend never sits on the data.
+    ax.set_ylim(4e-5, 60)
+    ax.legend(fontsize=7, ncol=2, loc="upper center", framealpha=0.95)
+    # The clipped points are floored, not measured; say so rather than let the flat
+    # 1e-4 tails read as predictions.
+    ax.annotate("Flat tails at 1e-4 ppt are floored: those cases round to 0.000 ppt "
+                "and cannot be drawn on a log axis.",
+                xy=(0.02, 0.02), xycoords="axes fraction", fontsize=7,
+                ha="left", va="bottom", color=viz.INK)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/H_intake_rise_curve.png"),
                "Variation of the maximum salinity rise at the intake with outfall distance from shore, "
                "for the RO concentrate and the phase-2 saturated cavern brine (log scale; "

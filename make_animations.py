@@ -14,7 +14,7 @@ Outputs:
 
 Author: Akosa Samuel Onyejekwe (Independent Researcher)
 """
-import os, json
+import os, json, textwrap
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
@@ -26,9 +26,16 @@ import run_helpers as H
 import run_case_study as R
 
 ANIM_DIR = "outputs/animations"
+TIDAL_PERIOD_H = 12.42
 os.makedirs(ANIM_DIR, exist_ok=True)
 if os.path.exists(H.MANIFEST):
     H._ARTIFACTS.extend(json.load(open(H.MANIFEST)))
+
+
+def _wrap(title, width=52):
+    """GIF frames are rasterised at a fixed canvas size, so a long single-line
+    axes title runs off the edge and is silently clipped.  Wrap it instead."""
+    return "\n".join(textwrap.wrap(title, width))
 
 
 def capture_transport_frames(field, tide, brine, sc, n_layers=9, n_frames=48):
@@ -94,8 +101,8 @@ def animate_salinity(frames, g, X, Y, outfall, title, gifname, zoom=450):
         R._outfall_marker(ax, outfall, mz)
         R._tidal_clock(ax, fr["phase"], (float(fr["u"].mean()), float(fr["v"].mean())))
         ax.set_xlim(ox - zoom, ox + zoom); ax.set_ylim(oy - zoom, oy + zoom)
-        ax.set_title(f"{title}\nt = {fr['phase']*12.42:.1f} h into cycle",
-                     color=viz.INK, fontweight="bold")
+        ax.set_title(f"{_wrap(title)}\nt = {fr['phase']*TIDAL_PERIOD_H:.1f} h into cycle",
+                     color=viz.INK, fontweight="bold", fontsize=11)
         ax.set_xlabel("Easting (m)"); ax.set_ylabel("Northing (m)")
         ax.set_aspect("equal")
         return []
@@ -113,14 +120,23 @@ def animate_current(field, tide, title, gifname):
     hyd = R.run_hydro_state(field, tide)
     f, g, X, Y = R.drive_fields(hyd, field)
     ox, oy = (C.MEDIUM_FIELD if field == "medium" else C.FAR_FIELD)["outfall_xy"]
-    nt = f["u"].shape[0]
     sk = max(1, g.nx // 26)
     fig, ax = viz.new_ax((7.2, 6.4), title, "Easting (m)", "Northing (m)")
     sp0 = np.hypot(f["u"][0], f["v"][0])
     pc = ax.pcolormesh(X, Y, sp0, cmap=viz.VEL_CMAP, vmin=0, vmax=0.8, shading="auto")
     cb = fig.colorbar(pc, ax=ax, shrink=0.85); cb.set_label("Current speed (m/s)")
 
-    def draw(i):
+    # The hydro series runs slightly past one tidal period.  Taking the first 36 of
+    # nt steps both truncated the cycle the title promises and left a "frame i/nt"
+    # counter whose denominator exceeded the number of frames actually written.
+    # Sample evenly across exactly one period and label elapsed time instead.
+    tt = np.asarray(f["t"], dtype=float)
+    last = int(np.searchsorted(tt, tt[0] + TIDAL_PERIOD_H * 3600.0, side="right")) - 1
+    last = max(last, 1)
+    idx = np.unique(np.linspace(0, last, min(last + 1, 36)).astype(int))
+
+    def draw(j):
+        i = int(idx[j])
         ax.clear()
         sp = np.hypot(f["u"][i], f["v"][i])
         ax.pcolormesh(X, Y, sp, cmap=viz.VEL_CMAP, vmin=0, vmax=0.8, shading="auto")
@@ -128,10 +144,11 @@ def animate_current(field, tide, title, gifname):
                   color="#1b2a4a", scale=9, width=0.003)
         ax.contourf(X, Y, (g.h <= 2.01).astype(float), levels=[0.5, 1.5], colors=["#d9c9a8"])
         R._outfall_marker(ax, (ox, oy))
-        ax.set_title(f"{title}\nframe {i+1}/{nt}", color=viz.INK, fontweight="bold")
+        ax.set_title(f"{_wrap(title)}\nt = {(tt[i] - tt[0]) / 3600.0:.1f} h into cycle",
+                     color=viz.INK, fontweight="bold", fontsize=11)
         ax.set_xlabel("Easting (m)"); ax.set_ylabel("Northing (m)"); ax.set_aspect("equal")
         return []
-    anim = FuncAnimation(fig, draw, frames=min(nt, 36), blit=False)
+    anim = FuncAnimation(fig, draw, frames=len(idx), blit=False)
     path = f"{ANIM_DIR}/{gifname}"
     anim.save(path, writer=PillowWriter(fps=7))
     plt.close(fig)
@@ -144,7 +161,7 @@ def filmstrip(frames, g, X, Y, outfall, title, fname, zoom=450, n=6):
     levels = viz.nonlinear_salinity_levels(C.AMBIENT["background_salinity_psu"])
     idxs = np.linspace(0, len(frames) - 1, n).astype(int)
     fig, axes = plt.subplots(2, 3, figsize=(13.5, 8.8), layout="constrained")
-    fig.suptitle(title, color=viz.INK, fontweight="bold")
+    fig.suptitle(_wrap(title, 90), color=viz.INK, fontweight="bold")
     sk = max(1, g.nx // 20)
     for ax, ii in zip(axes.ravel(), idxs):
         fr = frames[ii]

@@ -20,9 +20,19 @@ def reset_artifacts():
 
 
 def register(kind, path, caption, section, **extra):
-    """kind in {figure, table, csv}. Records an output artifact for the report."""
+    """kind in {figure, table, csv}. Records an output artifact for the report.
+
+    A path identifies an artifact uniquely, so re-registering one replaces its
+    record in place.  Appending instead let a re-run of a single stage (which
+    seeds _ARTIFACTS from the existing manifest) duplicate every artifact it
+    rewrote, inflating the figure and animation counts the report quotes.
+    """
     rec = {"kind": kind, "path": path, "caption": caption,
            "section": section, **extra}
+    for i, a in enumerate(_ARTIFACTS):
+        if a["path"] == path:
+            _ARTIFACTS[i] = rec
+            return path
     _ARTIFACTS.append(rec)
     return path
 
