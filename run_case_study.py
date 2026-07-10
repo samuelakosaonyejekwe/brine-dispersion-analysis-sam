@@ -895,16 +895,27 @@ def part_E_design(med):
 def part_F_tables():
     print("[F] tables & impurities ...")
     sec = "Inputs, parameters & water quality"
-    # layer scheme table
+    # Layer-scheme table.  SIGMA_LAYERS is ordered bottom-first, so index the rows
+    # from the SEABED: L1 is the bed cell in every scheme.  Aligning the schemes at
+    # the surface instead (as this table used to) puts the 4-layer bed cell on the
+    # same row as the 14-layer mid-column cell, so reading across a row compares
+    # layers at different heights - the opposite of the point the table makes, which
+    # is that resolution concentrates at the bed.
     rows = []
     maxn = 14
     for k in range(maxn):
-        rows.append(dict(layer=f"L{maxn-k}",
-                         pct_14=C.SIGMA_LAYERS[14][maxn - 1 - k],
-                         pct_9=(C.SIGMA_LAYERS[9][8 - k] if k < 9 else None),
-                         pct_4=(C.SIGMA_LAYERS[4][3 - k] if k < 4 else None)))
+        # Only L1 is the bed in every scheme; the surface cell differs per scheme
+        # (L14, L9, L4), so do not label a single row "surface".
+        rows.append(dict(layer=f"L{k+1}" + (" (bed)" if k == 0 else ""),
+                         pct_14=C.SIGMA_LAYERS[14][k],
+                         pct_9=(C.SIGMA_LAYERS[9][k] if k < 9 else None),
+                         pct_4=(C.SIGMA_LAYERS[4][k] if k < 4 else None)))
     H.write_csv(pd.DataFrame(rows), "F_layer_scheme.csv",
-                "Sigma-layer schemes: percentage of water-column depth per layer (bottom layer last).", sec)
+                "Sigma-layer schemes: percentage of water-column depth per layer, indexed from the "
+                "seabed (L1 is the bed cell in every scheme; each scheme's surface cell is its last "
+                "numbered entry - L14, L9 and L4 respectively). A dash means the scheme has no such "
+                "layer. The bed cell is 0.1% of depth with 14 layers, 1.0% with 9 and 15% with 4.",
+                sec)
 
     # model parameter table
     par = [("Minimum time step", f"{C.MODEL['min_timestep_s']} s"),
@@ -919,7 +930,18 @@ def part_F_tables():
            ("Background temperature", f"{C.AMBIENT['background_temperature_C']} C"),
            ("RO brine salinity", f"{C.BRINE['ro_salinity_psu']} psu"),
            ("Cavern brine salinity", f"{C.BRINE['cavern_salinity_psu']} psu"),
-           ("Outfall depth", f"{C.AMBIENT['outfall_depth_m']} m")]
+           ("Outfall depth", f"{C.AMBIENT['outfall_depth_m']} m"),
+           # The near-field closure constants and the diffuser geometry belong in
+           # the parameter table: without them the near-field results in this
+           # report cannot be reproduced from it.
+           ("Shear entrainment coefficient (jet)", nf.ALPHA_JET),
+           ("Shear entrainment coefficient (plume)", round(nf.ALPHA_PLUME, 4)),
+           ("Forced entrainment coefficient", nf.ALPHA_FORCED),
+           ("Ports installed", C.DIFFUSER["n_ports_installed"]),
+           ("Port diameter", f"{C.DIFFUSER['port_diameter_m']} m (6 inch)"),
+           ("Port discharge angle", f"{C.DIFFUSER['port_angle_deg']} deg"),
+           ("Port spacing", f"{C.DIFFUSER['port_spacing_m']} m"),
+           ("Port height above bed", f"{C.DIFFUSER['port_height_m']} m")]
     H.write_csv(pd.DataFrame(par, columns=["Parameter", "Value"]),
                 "F_model_parameters.csv", "Hydrodynamic and transport model parameters.", sec)
 

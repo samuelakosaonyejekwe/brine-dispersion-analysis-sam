@@ -12,3 +12,11 @@ Background temperature,18.0 C
 RO brine salinity,68.0 psu
 Cavern brine salinity,250.0 psu
 Outfall depth,18.0 m
+Shear entrainment coefficient (jet),0.057
+Shear entrainment coefficient (plume),0.083
+Forced entrainment coefficient,0.9
+Ports installed,4
+Port diameter,0.1524 m (6 inch)
+Port discharge angle,60.0 deg
+Port spacing,20.0 m
+Port height above bed,0.8 m

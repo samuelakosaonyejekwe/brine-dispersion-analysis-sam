@@ -123,7 +123,9 @@ def add_table_from_csv(path, caption, max_rows=40, drop_cols=()):
     for _, row in df.iterrows():
         cells = t.add_row().cells
         for j, c in enumerate(df.columns):
-            cells[j].text = str(row[c])
+            # A missing value must not print as the literal "nan" in a report.
+            v = row[c]
+            cells[j].text = "-" if pd.isna(v) else str(v)
             for pp in cells[j].paragraphs:
                 for rr in pp.runs:
                     rr.font.size = fsz; rr.font.color.rgb = INK
