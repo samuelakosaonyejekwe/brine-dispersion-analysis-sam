@@ -166,16 +166,16 @@ if __name__ == "__main__":
     frames, g, X, Y, of, imp = capture_transport_frames(
         "medium", "spring", R.BRINE_CAVERN, C.SCENARIOS[-1], n_layers=9, n_frames=44)
     animate_salinity(frames, g, X, Y, of,
-                     "Brine dispersion over a tidal cycle (full flow, spring)",
+                     "Brine dispersion over a tidal cycle (full flow, spring, saturated cavern brine)",
                      "ANIM_brine_dispersion_spring.gif")
     filmstrip(frames, g, X, Y, of,
-              "Brine dispersion over a tidal cycle (full flow, spring)",
+              "Brine dispersion over a tidal cycle (full flow, spring, saturated cavern brine)",
               "ANIM_brine_dispersion_filmstrip.png")
     print("animating neap brine dispersion ...")
     frn, gn, Xn, Yn, ofn, _ = capture_transport_frames(
         "medium", "neap", R.BRINE_CAVERN, C.SCENARIOS[-1], n_layers=9, n_frames=44)
     animate_salinity(frn, gn, Xn, Yn, ofn,
-                     "Brine dispersion over a tidal cycle (full flow, neap)",
+                     "Brine dispersion over a tidal cycle (full flow, neap, saturated cavern brine)",
                      "ANIM_brine_dispersion_neap.gif")
     print("animating tidal current field ...")
     animate_current("medium", "spring", "Tidal current field over a cycle (spring)",

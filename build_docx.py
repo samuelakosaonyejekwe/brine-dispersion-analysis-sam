@@ -440,17 +440,52 @@ add_section_figs("Design comparison & optimisation")
 # 7B  OUTFALL SITING & INTAKE RECIRCULATION
 # ===========================================================================
 h1("8  Outfall Siting and Intake Recirculation")
+_rc = RESULTS["recirc"]
+_CRIT = 0.1
+_ro = _rc[_rc.brine == "RO concentrate"]
+_cav = _rc[_rc.brine != "RO concentrate"]
+_ro_worst = _ro.rise_max_ppt.max()
+_cav_worst = _cav.rise_max_ppt.max()
+_rec_dist = 1200
+_cav_at_rec = _cav[(_cav.outfall_dist_m == _rec_dist)].rise_max_ppt.max()
+_cav_ok = sorted(d for d in _cav.outfall_dist_m.unique()
+                 if _cav[_cav.outfall_dist_m == d].rise_max_ppt.max() <= _CRIT)
 para("Following the desalination-siting methodology, the salinity rise at the plant intake "
      "was assessed as a function of outfall distance from shore under steady northward, "
-     "southward and weak-southward currents. The recirculation criterion is a salinity rise "
-     "at the intake of no more than 0.1 ppt above ambient. The weak southward current is the "
-     "critical (least-flushing) condition.")
+     f"southward and weak-southward currents, for both discharges. The criterion is a salinity "
+     f"rise at the intake of no more than {_CRIT} ppt above ambient, applied to the peak cell in "
+     "the intake window. The weak southward current is the critical (least-flushing) condition.")
+_nf_all = RESULTS["nearfield"]
+_ro_bed = _nf_all[_nf_all.brine == "RO concentrate"].seabed_salinity_psu.max()
+_cav_bed = _nf_all[_nf_all.brine != "RO concentrate"].seabed_salinity_psu.max()
+_bg = C.AMBIENT["background_salinity_psu"]
+para("The two brines behave very differently, and the distinction matters. The intake signal "
+     "scales with the excess salinity the plume delivers to the bed: the RO concentrate lands at "
+     f"{_ro_bed:.2f} psu, an excess of {_ro_bed - _bg:.2f} psu over the {_bg} psu background, "
+     f"whereas the saturated cavern brine lands at {_cav_bed:.2f} psu, an excess of "
+     f"{_cav_bed - _bg:.2f} psu - about {(_cav_bed - _bg) / (_ro_bed - _bg):.0f} times larger.")
 add_table_from_csv(f"{H.CSV_DIR}/H_table1A_southward.csv",
-                   "Rise in salinity at intake above ambient - southward current 0.25 m/s.")
+                   "Rise in salinity at intake above ambient - southward current 0.25 m/s, both brines.")
 add_table_from_csv(f"{H.CSV_DIR}/H_table1B_weak.csv",
-                   "Rise in salinity at intake above ambient - weak southward current 0.05 m/s.")
+                   "Rise in salinity at intake above ambient - weak southward current 0.05 m/s, both brines.")
 add_table_from_csv(f"{H.CSV_DIR}/H_table1C_northward.csv",
-                   "Rise in salinity at intake above ambient - northward current 0.25 m/s.")
+                   "Rise in salinity at intake above ambient - northward current 0.25 m/s, both brines.")
+para(f"Result. For the RO concentrate the criterion is met everywhere: the worst cell over all "
+     f"currents and distances is {_ro_worst:.3f} ppt, and at the recommended {_rec_dist} m siting "
+     f"the rise is {_ro[_ro.outfall_dist_m == _rec_dist].rise_max_ppt.max():.3f} ppt. For the "
+     f"phase-2 saturated cavern brine the criterion is NOT met at {_rec_dist} m, where the peak "
+     f"intake rise reaches {_cav_at_rec:.3f} ppt, nor at any shorter distance tested (worst case "
+     f"{_cav_worst:.3f} ppt at the closest siting under the weak southward current). It is met from "
+     f"{_cav_ok[0] if _cav_ok else -1:.0f} m offshore ("
+     f"{_cav[_cav.outfall_dist_m == (_cav_ok[0] if _cav_ok else 0)].rise_max_ppt.max():.3f} ppt).")
+para(f"Consequence for the design. The {_rec_dist} m outfall recommended in section 7 satisfies the "
+     "recirculation criterion for the phase-1 RO discharge, which is the discharge the plant is "
+     "being built for. It does not satisfy it for the phase-2 cavern brine. If the cavern stream is "
+     "committed, the outfall must be moved to at least "
+     f"{_cav_ok[0] if _cav_ok else -1:.0f} m, or the recirculation criterion re-examined against the "
+     "intermittency of that stream. This is a screening result on a 50 m grid under a steady "
+     "current and is adequate to rank distances and to test the threshold; it is not a basis for "
+     "fixing a siting distance to the nearest 200 m without a tidally-resolved run.")
 add_section_figs("Outfall siting & recirculation")
 
 # ===========================================================================
@@ -548,6 +583,13 @@ para("The UBDS solver provides a single, open, physically-validated framework sp
      f"demonstrates that the proposed inclined {C.DIFFUSER['n_ports_installed']}-port diffuser achieves effective initial "
      "dilution and confines significant salinity increments and all trace impurities to within "
      "the regulatory mixing zone, across all simulated discharge flows and tidal states.")
+para(f"One condition attaches to that conclusion. The {_rec_dist} m outfall meets the "
+     f"{_CRIT} ppt intake-recirculation criterion for the phase-1 RO concentrate "
+     f"({_ro[_ro.outfall_dist_m == _rec_dist].rise_max_ppt.max():.3f} ppt) but not for the phase-2 "
+     f"saturated cavern brine ({_cav_at_rec:.3f} ppt), which requires a siting of at least "
+     f"{_cav_ok[0] if _cav_ok else -1:.0f} m. The seabed-salinity and water-quality conclusions "
+     "above already use the cavern brine as the worst case; the recirculation conclusion is the "
+     "one place where the two phases diverge, and it is stated separately for that reason.")
 
 # ===========================================================================
 # APPENDIX - OUTPUT INVENTORY

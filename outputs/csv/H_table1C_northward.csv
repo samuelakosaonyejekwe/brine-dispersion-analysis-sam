@@ -1,5 +1,11 @@
-outfall_dist_m,rise_min_ppt,rise_max_ppt,rise_avg_ppt
-600,0.001,0.021,0.005
-800,0.0,0.002,0.001
-1000,0.0,0.0,0.0
-1200,0.0,0.0,0.0
+brine,outfall_dist_m,rise_min_ppt,rise_max_ppt,rise_avg_ppt,recirc_risk
+RO concentrate,600,0.001,0.021,0.005,No
+RO concentrate,800,0.0,0.002,0.001,No
+RO concentrate,1000,0.0,0.0,0.0,No
+RO concentrate,1200,0.0,0.0,0.0,No
+RO concentrate,1400,0.0,0.0,0.0,No
+Saturated cavern brine,600,0.009,0.287,0.076,Yes
+Saturated cavern brine,800,0.001,0.034,0.01,No
+Saturated cavern brine,1000,0.0,0.005,0.001,No
+Saturated cavern brine,1200,0.0,0.001,0.0,No
+Saturated cavern brine,1400,0.0,0.0,0.0,No

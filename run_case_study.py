@@ -824,7 +824,8 @@ def part_E_design(med):
     # salinity profile along principal transect through the diffuser (PDF2 8d)
     j0, i0 = nearest_cell(g, ox)
     xs = X[0]; sal_line = out9n["env"][0][j0, :]
-    fig, ax = viz.new_ax((8, 4.6), "Seabed salinity profile through the diffuser (cross-shore transect)",
+    fig, ax = viz.new_ax((8, 4.6),
+                         "Seabed salinity through the diffuser (cross-shore transect, saturated cavern brine)",
                          "Easting (m)", "Maximum seabed salinity (psu)")
     ax.plot(xs, sal_line, color="#d1495b", lw=2.4)
     ax.axhline(Sa, color="#7b5ea7", ls=":", label="Background")
@@ -832,7 +833,8 @@ def part_E_design(med):
     ax.axvline(ox[0], color="#2a6f97", ls="-.", alpha=0.6, label="Diffuser")
     ax.legend()
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/E_salinity_transect.png"),
-               "Maximum seabed salinity along a transect through the diffuser.", sec)
+               "Maximum seabed salinity along a transect through the diffuser "
+               "(neap, full flow, saturated cavern brine).", sec)
     pd.DataFrame({"easting_m": xs, "max_seabed_salinity_psu": sal_line}).to_csv(
         f"{H.CSV_DIR}/E_salinity_transect.csv", index=False)
     H.register("csv", f"{H.CSV_DIR}/E_salinity_transect.csv",
@@ -971,14 +973,24 @@ def part_G_csv_plots():
                          "Tidal velocity (m/s)", "Seabed dilution (S/S0)")
     styles = {"RO concentrate": "-o", "Saturated cavern brine": "--s"}
     cols = {"S1": "#2a6f97", "S2": "#3a9278", "S3": "#d1495b"}
+    short = {"RO concentrate": "RO", "Saturated cavern brine": "Cavern"}
+    # S1 and S3 discharge the same 300 m3/hr per port, so their curves coincide
+    # exactly.  Draw S3 with a wider, lighter line underneath so both remain
+    # visible instead of one hiding the other.
     for bn in d.brine.unique():
-        for sid in ["S1", "S2", "S3"]:
+        for sid in ["S3", "S1", "S2"]:
             sub = d[(d.brine == bn) & (d.scenario == sid)].sort_values("velocity_ms")
+            lw, alpha = (5.0, 0.35) if sid == "S3" else (2.0, 1.0)
             ax.plot(sub.velocity_ms, sub.dilution, styles[bn], color=cols[sid],
-                    label=f"{bn[:2]} {sid}")
+                    lw=lw, alpha=alpha, label=f"{short[bn]} {sid}")
+    ax.annotate("S1 and S3 coincide: both discharge 300 m3/hr per port",
+                xy=(0.02, 0.97), xycoords="axes fraction", fontsize=8,
+                va="top", color=viz.INK)
     ax.legend(fontsize=8, ncol=2)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/G_dilution_vs_velocity.png"),
-               "Seabed dilution as a function of tidal velocity for each brine type and scenario.", sec)
+               "Seabed dilution as a function of tidal velocity for each brine type and scenario. "
+               "S1 and S3 coincide because dilution is set by the per-port flow (300 m3/hr in both), "
+               "not the total.", sec)
 
     # increment area vs flow
     dft = RESULTS["far_table"]
@@ -987,9 +999,21 @@ def part_G_csv_plots():
     ax.plot(dft.flow_m3hr, dft.area_0p5psu_km2, "-o", color="#2a6f97", label="0.5 psu")
     ax.plot(dft.flow_m3hr, dft.area_1p0psu_km2, "-s", color="#3a9278", label="1.0 psu")
     ax.plot(dft.flow_m3hr, dft.area_1p5psu_km2, "-^", color="#d1495b", label="1.5 psu")
+    # Every area is exactly zero, so the three lines lie on the axis and the plot
+    # reads as empty.  Say why on the figure itself: it sits in the data-plot
+    # appendix, far from the section-6 note that explains the zeros.
+    _peak_inc = dft.max_seabed_salinity_psu.max() - C.AMBIENT["background_salinity_psu"]
+    if float(dft[["area_0p5psu_km2", "area_1p0psu_km2", "area_1p5psu_km2"]].max().max()) == 0.0:
+        ax.set_ylim(-0.02, 0.5)
+        ax.annotate(f"All areas are 0.000 km2: on the {C.FAR_FIELD['dx_m']:.0f} m regional grid the\n"
+                    f"seabed increment peaks at {_peak_inc:.2f} psu, below the 0.5 psu threshold.\n"
+                    f"The near-field impact footprint does exceed it (see section 4).",
+                    xy=(0.03, 0.80), xycoords="axes fraction", fontsize=8.5, color=viz.INK)
     ax.legend()
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/G_area_vs_flow.png"),
-               "Area enclosed by salinity-increment contours vs discharge flow.", sec)
+               "Area enclosed by salinity-increment contours vs discharge flow. All three areas are "
+               "zero on the regional grid, whose peak seabed increment is "
+               f"{_peak_inc:.2f} psu; the zeros are grid-resolved, not absolute.", sec)
 
     # validation skill bar
     sk = RESULTS["skill"]
@@ -1015,16 +1039,21 @@ def _steady_fields(g, speed, bearing_deg, T):
     return {"u": u, "v": v, "t": np.linspace(0, T, 4)}
 
 
-def _recirc_run(outfall_dist_m, current_label, speed, bearing, capture_ts=False):
+def _recirc_run(outfall_dist_m, current_label, speed, bearing, capture_ts=False, brine=None):
     """Steady-current brine run; returns salinity rise at the intake (ppt).
 
     Uses the coarse (50 m) medium grid - a steady cross-shore spreading study
-    does not need the fine resolution, which keeps the 12-case study fast.
+    does not need the fine resolution, which keeps the case study fast.
+
+    ``brine`` selects the discharge: the intake signal scales with the excess
+    salinity the plume delivers to the bed, so the phase-2 cavern brine (which
+    lands at ~51 psu, an excess of ~15 psu) produces a far larger rise than the
+    RO concentrate (~37 psu, an excess of ~0.5 psu).  Both must be assessed.
     """
     fld = C.MEDIUM_FIELD
     g, X, Y = build_bathymetry(fld["Lx_m"], fld["Ly_m"], 50.0, 50.0, fld["outfall_xy"])
     Sa = C.AMBIENT["background_salinity_psu"]
-    S0, T0 = BRINE_RO
+    S0, T0 = brine if brine is not None else BRINE_RO
     shore_x = 0.10 * fld["Lx_m"]
     ox = shore_x + outfall_dist_m
     oy = fld["Ly_m"] * 0.5
@@ -1066,32 +1095,49 @@ def _recirc_run(outfall_dist_m, current_label, speed, bearing, capture_ts=False)
 def part_H_recirculation():
     print("[H] outfall siting & intake recirculation ...")
     sec = "Outfall siting & recirculation"
-    dists = [600, 800, 1000, 1200]
+    # 1400 m is included because the phase-2 cavern brine does not meet the
+    # criterion at any of the originally tested distances.
+    dists = [600, 800, 1000, 1200, 1400]
     currents = [("northward 0.25 m/s", 0.25, 90), ("southward 0.25 m/s", 0.25, 270),
                 ("weak southward 0.05 m/s", 0.05, 270)]
+    brines = [("RO concentrate", BRINE_RO),
+              ("Saturated cavern brine", BRINE_CAVERN)]
+    crit = C.THRESHOLDS.get("recirc_limit_ppt", 0.1)
     rows = []
     fields = {}
-    for cl, sp, brg in currents:
-        for dd in dists:
-            r = _recirc_run(dd, cl, sp, brg, capture_ts=(dd in (600, 1200)))
-            rows.append(dict(current=cl, outfall_dist_m=dd,
-                             rise_avg_ppt=round(r["rise_avg"], 3),
-                             rise_min_ppt=round(r["rise_min"], 3),
-                             rise_max_ppt=round(r["rise_max"], 3),
-                             recirc_risk="Yes" if r["rise_avg"] > 0.1 else "No"))
-            fields[(cl, dd)] = r
+    for bl, bv in brines:
+        for cl, sp, brg in currents:
+            for dd in dists:
+                cap = (cl == "weak southward 0.05 m/s" and dd in (600, 1200))
+                r = _recirc_run(dd, cl, sp, brg, capture_ts=cap, brine=bv)
+                rows.append(dict(brine=bl, current=cl, outfall_dist_m=dd,
+                                 rise_avg_ppt=round(r["rise_avg"], 3),
+                                 rise_min_ppt=round(r["rise_min"], 3),
+                                 rise_max_ppt=round(r["rise_max"], 3),
+                                 # The criterion is an upper bound, so it is the peak
+                                 # cell in the intake window that has to clear it - not
+                                 # the window mean, which this previously graded on.
+                                 recirc_risk="Yes" if r["rise_max"] > crit else "No"))
+                fields[(bl, cl, dd)] = r
     dfr = pd.DataFrame(rows)
     H.write_csv(dfr, "H_intake_recirculation.csv",
-                "Salinity rise above ambient at the intake vs outfall distance from shore, by current condition (0.1 ppt recirculation criterion).", sec)
+                "Salinity rise above ambient at the intake vs outfall distance from shore, by brine "
+                f"and current condition ({crit} ppt recirculation criterion, applied to the peak cell).",
+                sec)
     RESULTS["recirc"] = dfr
+    _fail = dfr[dfr.recirc_risk == "Yes"]
+    if len(_fail):
+        print(f"    recirculation: {len(_fail)} of {len(dfr)} cases exceed {crit} ppt "
+              f"(brines: {sorted(_fail.brine.unique())})")
 
-    # Table 1A / 1B / 1C style separate CSVs
+    # Table 1A / 1B / 1C style separate CSVs, now carrying both brines
     for cl, tag in [("southward 0.25 m/s", "H_table1A_southward"),
                     ("weak southward 0.05 m/s", "H_table1B_weak"),
                     ("northward 0.25 m/s", "H_table1C_northward")]:
-        sub = dfr[dfr.current == cl][["outfall_dist_m", "rise_min_ppt", "rise_max_ppt", "rise_avg_ppt"]]
+        sub = dfr[dfr.current == cl][["brine", "outfall_dist_m", "rise_min_ppt",
+                                      "rise_max_ppt", "rise_avg_ppt", "recirc_risk"]]
         H.write_csv(sub, f"{tag}.csv",
-                    f"Rise in salinity at intake above ambient - {cl}.", sec)
+                    f"Rise in salinity at intake above ambient - {cl}, both brines.", sec)
 
     # Fig 6: rise at intake vs outfall distance.  Plot the MAXIMUM cell rise in the
     # intake window, not the window mean: the 0.1 ppt criterion is an upper bound, so
@@ -1101,21 +1147,28 @@ def part_H_recirculation():
                          "Outfall distance from shore (m)", "Maximum salinity rise at intake (ppt)")
     cmap = {"northward 0.25 m/s": "#2a6f97", "southward 0.25 m/s": "#3a9278",
             "weak southward 0.05 m/s": "#d1495b"}
-    for cl, sp, brg in currents:
-        sub = dfr[dfr.current == cl]
-        ax.plot(sub.outfall_dist_m, sub.rise_max_ppt, "-o", color=cmap[cl], lw=2.2, label=cl)
-    ax.axhline(0.1, color="#7b5ea7", ls="--", lw=1.8, label="0.1 ppt recirculation limit")
-    ax.legend(fontsize=8)
+    style = {"RO concentrate": "-o", "Saturated cavern brine": "--s"}
+    for bl, _bv in brines:
+        for cl, sp, brg in currents:
+            sub = dfr[(dfr.current == cl) & (dfr.brine == bl)]
+            # a zero rise cannot be drawn on a log axis; floor it at the plot bottom
+            y = sub.rise_max_ppt.clip(lower=1e-4)
+            ax.plot(sub.outfall_dist_m, y, style[bl], color=cmap[cl], lw=2.2,
+                    label=f"{'RO' if bl.startswith('RO') else 'Cavern'} - {cl}")
+    ax.set_yscale("log")
+    ax.axhline(crit, color="#7b5ea7", ls="--", lw=1.8, label=f"{crit} ppt recirculation limit")
+    ax.legend(fontsize=7, ncol=2)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/H_intake_rise_curve.png"),
-               "Variation of the maximum salinity rise at the intake with outfall distance from shore "
-               "(recirculation criterion).", sec)
+               "Variation of the maximum salinity rise at the intake with outfall distance from shore, "
+               "for the RO concentrate and the phase-2 saturated cavern brine (log scale; "
+               f"{crit} ppt recirculation criterion). Values of zero are plotted at the axis floor.", sec)
 
     # Fig 4A/4B: salinity-RISE contours for near vs far outfall (weak current)
     rise_levels = [0.05, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4]
     for dd, tag in [(600, "near"), (1200, "far")]:
-        r = fields[("weak southward 0.05 m/s", dd)]
+        r = fields[("RO concentrate", "weak southward 0.05 m/s", dd)]
         fig, ax = viz.new_ax((7.4, 6.4),
-            f"Contours of salinity rise - outfall {dd} m from shore (weak southward current)",
+            f"Contours of salinity rise - outfall {dd} m from shore (weak southward, RO brine)",
             "Easting (m)", "Northing (m)")
         cf = ax.contourf(r["X"], r["Y"], r["rise_field"], levels=rise_levels,
                          cmap=viz.RISE_CMAP, extend="max")
@@ -1126,25 +1179,27 @@ def part_H_recirculation():
         ax.legend(loc="upper right"); ax.set_aspect("equal")
         ax.set_xlim(r["intake_x"]-400, r["ox"]+800); ax.set_ylim(r["oy"]-1100, r["oy"]+1100)
         H.register("figure", viz.save(fig, f"{H.FIG_DIR}/H_rise_contour_{tag}.png"),
-                   f"Salinity-rise contours, outfall {dd} m from shore, weak southward current.", sec)
+                   f"Salinity-rise contours, outfall {dd} m from shore, weak southward current "
+                   f"(RO concentrate).", sec)
 
     # Fig 5A/5B: time history of salinity rise at intake & outfall
     for dd, tag in [(600, "near"), (1200, "far")]:
-        r = fields[("weak southward 0.05 m/s", dd)]
+        r = fields[("RO concentrate", "weak southward 0.05 m/s", dd)]
         t, sin_, sou_ = r["ts"]
         fig, ax = viz.new_ax((8, 4.6),
-            f"Time history of salinity rise - outfall {dd} m from shore (weak current)",
+            f"Time history of salinity rise - outfall {dd} m from shore (weak current, RO brine)",
             "Time (h)", "Salinity rise above ambient (ppt)")
         ax.plot(t, sou_, color="#d1495b", lw=2.2, label="At outfall")
         ax.plot(t, sin_, color="#2a6f97", lw=2.2, label="At intake")
         ax.axhline(0.1, color="#7b5ea7", ls="--", label="0.1 ppt limit")
         ax.legend()
         H.register("figure", viz.save(fig, f"{H.FIG_DIR}/H_timehist_{tag}.png"),
-                   f"Time history of salinity rise at intake and outfall, outfall {dd} m from shore.", sec)
+                   f"Time history of salinity rise at intake and outfall, outfall {dd} m from shore "
+                   f"(weak southward current, RO concentrate).", sec)
         pd.DataFrame({"time_h": t, "rise_intake_ppt": sin_, "rise_outfall_ppt": sou_}).to_csv(
             f"{H.CSV_DIR}/H_timehist_{tag}.csv", index=False)
         H.register("csv", f"{H.CSV_DIR}/H_timehist_{tag}.csv",
-                   f"Time-history data, outfall {dd} m from shore.", sec)
+                   f"Time-history data, outfall {dd} m from shore (RO concentrate).", sec)
 
 
 if __name__ == "__main__":
