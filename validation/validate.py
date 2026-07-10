@@ -137,7 +137,12 @@ def validate_dense_jet():
     gp = g * (rho_0 - rho_a) / rho_a
     D = 0.1524
     rows = []
-    for u0 in [2.5, 3.5, 4.5, 5.5, 6.5]:
+    # The sweep must span the Froude numbers the CASE STUDY actually runs at, not
+    # a convenient band above them.  The saturated-cavern worst case discharges at
+    # Fr 9.2-10.7 and the RO concentrate at Fr 24.0-27.9; u0 = 1.75 and 2.15 m/s
+    # extend the benchmark down to Fr ~9 so the worst case is covered rather than
+    # extrapolated to.
+    for u0 in [1.75, 2.15, 2.5, 3.5, 4.5, 5.5, 6.5]:
         flow = u0 * (np.pi * (D / 2) ** 2) * 3600
         Fr = u0 / np.sqrt(gp * D)
         amb = nf.Ambient(salinity=Sa, temperature=Ta, depth=60.0, current=0.0)
@@ -166,6 +171,13 @@ def validate_dense_jet():
     SUMMARY["dense_jet_xr_over_DFr_mean"] = round(float(d.xr_over_DFr.mean()), 3)
     SUMMARY["dense_jet_Sr_bulk_over_Fr_mean"] = round(float(d.Sr_bulk_over_Fr.mean()), 3)
     SUMMARY["dense_jet_Sr_min_over_Fr_mean"] = round(float(d.Sr_min_over_Fr.mean()), 3)
+    # Froude span actually benchmarked, and how many cases land inside each band.
+    SUMMARY["dense_jet_Fr_min"] = round(float(d.Fr.min()), 1)
+    SUMMARY["dense_jet_Fr_max"] = round(float(d.Fr.max()), 1)
+    SUMMARY["dense_jet_n_cases"] = int(len(d))
+    SUMMARY["dense_jet_zt_in_band"] = int(((d.zt_over_DFr >= 1.6) & (d.zt_over_DFr <= 2.2)).sum())
+    SUMMARY["dense_jet_xr_in_band"] = int(((d.xr_over_DFr >= 2.2) & (d.xr_over_DFr <= 3.3)).sum())
+    SUMMARY["dense_jet_Sr_min_in_band"] = int(((d.Sr_min_over_Fr >= 0.4) & (d.Sr_min_over_Fr <= 0.6)).sum())
     # plot vs published bands
     fig, ax = viz.new_ax((7.5, 5), "Inclined dense-jet validation (60 deg) vs published data",
                          "Jet densimetric Froude number Fr", "Dimensionless value")

@@ -993,14 +993,16 @@ def part_G_csv_plots():
 
     # validation skill bar
     sk = RESULTS["skill"]
-    fig, ax = viz.new_ax((8, 4.6), "Hydrodynamic calibration skill by station",
+    fig, ax = viz.new_ax((8, 4.6), "Model skill vs the synthetic current reference, by station",
                          "Station", "Willmott index of agreement (d)")
     sub = sk[sk.tide == "spring"]
     ax.bar(sub.station, sub.willmott_d, color="#3a9278")
     ax.axhline(0.9, color="#d1495b", ls="--", label="d = 0.90")
     ax.set_ylim(0, 1.05); ax.legend()
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/G_skill.png"),
-               "Index-of-agreement between modelled and observed currents by station (spring).", sec)
+               "Index-of-agreement between the model and the synthetic current reference by station "
+               "(spring). The reference is derived from the model solution, so this is not a field "
+               "comparison.", sec)
 
 
 # ===========================================================================

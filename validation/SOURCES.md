@@ -26,6 +26,20 @@ with the kernel each source validates.
    stratified flows, Part 1. *Environmental Fluid Mechanics* **4**, 1–56.
    — Reference integral-model formulation.
 
+### Entrainment-coefficient calibration set
+The entrainment coefficients shipped in `ubds/nearfield.py` were calibrated against
+six seabed initial-dilution targets for **vertical** dense jets through 6-inch ports
+(260 psu brine into 34.2 psu ambient, 27 m depth), listed in
+`validation/calibrate_nearfield.py`. Those six cases span **7.4 ≤ Fr ≤ 14.8**.
+
+This is a *calibration* set, not independent validation: the coefficients were fitted
+to it, so agreement with it demonstrates nothing about predictive skill. The
+independent evidence is items 1–4 above. Note also that the calibration jets are
+vertical (θ = 90°) whereas the case study discharges at 60°, and that the inclined
+dense-jet benchmark in `validate.py` is swept over 9.0 ≤ Fr ≤ 33.3 specifically so
+that it contains the Froude numbers of both brines in the case study (saturated
+cavern Fr 9.2–10.7, RO concentrate Fr 24.0–27.9) rather than only a band above them.
+
 ## Equation of state
 7. **Millero, F.J. & Poisson, A. (1981).** International one-atmosphere equation of
    state of seawater. *Deep-Sea Research* **28A**, 625–629; **UNESCO (1981)**, Tenth

@@ -3,8 +3,14 @@
   "jet_dilution_slope_perZD": 0.228,
   "jet_spread_dbdz": 0.114,
   "plume_dilution_exponent": 1.596,
-  "dense_jet_zt_over_DFr_mean": 1.534,
-  "dense_jet_xr_over_DFr_mean": 2.572,
-  "dense_jet_Sr_bulk_over_Fr_mean": 0.995,
-  "dense_jet_Sr_min_over_Fr_mean": 0.587
+  "dense_jet_zt_over_DFr_mean": 1.49,
+  "dense_jet_xr_over_DFr_mean": 2.522,
+  "dense_jet_Sr_bulk_over_Fr_mean": 0.985,
+  "dense_jet_Sr_min_over_Fr_mean": 0.581,
+  "dense_jet_Fr_min": 9.0,
+  "dense_jet_Fr_max": 33.3,
+  "dense_jet_n_cases": 7,
+  "dense_jet_zt_in_band": 1,
+  "dense_jet_xr_in_band": 7,
+  "dense_jet_Sr_min_in_band": 6
 }

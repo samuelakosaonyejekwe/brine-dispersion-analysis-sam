@@ -39,8 +39,13 @@ def _fr(row):
     gp = 9.81 * (eos.density(S0, T0) - _ra) / _ra
     return row.exit_velocity_ms / np.sqrt(gp * C.DIFFUSER["port_diameter_m"])
 _nfcsv["Fr"] = _nfcsv.apply(_fr, axis=1)
-_FR_VALID = 33.3          # upper Fr of the inclined dense-jet validation set
-_out = _nfcsv[_nfcsv.Fr > _FR_VALID]
+# Read the benchmarked Froude span from the validation suite rather than hard-coding
+# it, and test BOTH bounds.  Testing only the upper bound previously let nine
+# saturated-cavern runs at Fr 9.2-10.7 sit below the benchmark while the report
+# asserted that every run was inside it.
+_FR_LO = VSUM["dense_jet_Fr_min"]
+_FR_HI = VSUM["dense_jet_Fr_max"]
+_out = _nfcsv[(_nfcsv.Fr < _FR_LO) | (_nfcsv.Fr > _FR_HI)]
 
 doc = Document()
 
@@ -330,23 +335,33 @@ para("The near-field initial dilution was computed with the UBDS integral jet/pl
 
 _depth = C.AMBIENT["outfall_depth_m"]
 _rise_frac = 100 * _nfcsv.rise_height_m.max() / _depth
+_cav = _nfcsv[_nfcsv.brine != "RO concentrate"]
+_ro = _nfcsv[_nfcsv.brine == "RO concentrate"]
 if not len(_out):
     para(
-      f"Validity of the near-field results. The entrainment closure is validated against "
-      f"inclined dense-jet data over 12.8 <= Fr <= {_FR_VALID:.1f}. Every one of the "
-      f"{len(_nfcsv)} runs below lies inside that range (maximum Fr = {_nfcsv.Fr.max():.1f}), "
-      f"because the diffuser stages ports in with flow and so holds the per-port exit "
-      f"velocity between {_nfcsv.exit_velocity_ms.min():.2f} and "
-      f"{_nfcsv.exit_velocity_ms.max():.2f} m/s. The greatest predicted plume rise is "
-      f"{_nfcsv.rise_height_m.max():.1f} m in {_depth:.0f} m of water "
-      f"({100 * _nfcsv.rise_height_m.max() / _depth:.0f}% of the water column), so the "
-      f"free surface, which the model does not impose, is not approached.")
+      f"Validity of the near-field results. The inclined dense-jet benchmark spans "
+      f"{_FR_LO:.1f} <= Fr <= {_FR_HI:.1f} ({VSUM['dense_jet_n_cases']} cases), which was chosen to "
+      f"cover the Froude numbers this study actually runs at rather than a convenient band above "
+      f"them. All {len(_nfcsv)} runs below lie inside that span: the RO concentrate at "
+      f"Fr {_ro.Fr.min():.1f}-{_ro.Fr.max():.1f} and the denser saturated-cavern brine, which "
+      f"governs the seabed assessment, at Fr {_cav.Fr.min():.1f}-{_cav.Fr.max():.1f}. The diffuser "
+      f"stages ports in with flow, holding the per-port exit velocity between "
+      f"{_nfcsv.exit_velocity_ms.min():.2f} and {_nfcsv.exit_velocity_ms.max():.2f} m/s. "
+      f"Coverage is not the same as agreement: across the benchmark the return distance is inside "
+      f"its published band in {VSUM['dense_jet_xr_in_band']}/{VSUM['dense_jet_n_cases']} cases and "
+      f"the return-point dilution in {VSUM['dense_jet_Sr_min_in_band']}/{VSUM['dense_jet_n_cases']}, "
+      f"but the terminal rise is inside its band in only "
+      f"{VSUM['dense_jet_zt_in_band']}/{VSUM['dense_jet_n_cases']}, and the shortfall grows as Fr "
+      f"falls - that is, it is largest at the cavern-brine Froude numbers. Section 9 quantifies it. "
+      f"The greatest predicted plume rise is {_nfcsv.rise_height_m.max():.1f} m in {_depth:.0f} m "
+      f"of water ({_rise_frac:.0f}% of the water column), so the free surface, which the model does "
+      f"not impose, is not approached.")
 else:
     para(
       f"Validity of the near-field results. The entrainment closure is validated against "
-      f"inclined dense-jet data over 12.8 <= Fr <= {_FR_VALID:.1f} and against vertical dense-jet "
+      f"inclined dense-jet data over {_FR_LO:.1f} <= Fr <= {_FR_HI:.1f} and against vertical dense-jet "
       f"initial-dilution data over 7.4 <= Fr <= 14.8. {len(_out)} of the {len(_nfcsv)} runs in the "
-      f"table below exceed that range, reaching Fr = {_nfcsv.Fr.max():.0f}: these are the "
+      f"table below fall outside that range (Fr {_nfcsv.Fr.min():.1f}-{_nfcsv.Fr.max():.1f}): these are the "
       f"RO-concentrate cases, whose brine is only "
       f"{C.BRINE['ro_salinity_psu']:.0f} psu and therefore only weakly dense, giving a high jet "
       f"Froude number and correspondingly high dilution. Their predicted dilutions "
@@ -465,21 +480,31 @@ if VSUM:
     bullet(f"Pure plume: volume-flux exponent {VSUM.get('plume_dilution_exponent','-')} vs the "
            "5/3 = 1.667 power law (Morton, Taylor & Turner, 1956); about 4% below the analytical "
            "exponent.")
-    bullet(f"Inclined 60 deg dense jet (Papakonstantis, Christodoulou & Papanicolaou, 2011): "
-           f"x_r/(D.Fr) = {VSUM.get('dense_jet_xr_over_DFr_mean','-')} vs the published 2.2-3.3 "
-           "band - in band. Return-point dilution, converted from the model's bulk (top-hat) value "
+    _n = VSUM.get("dense_jet_n_cases", 0)
+    _zt = VSUM.get("dense_jet_zt_over_DFr_mean", 0)
+    _zt_short = 100 * (1.6 - _zt) / 1.6
+    bullet(f"Inclined 60 deg dense jet (Papakonstantis, Christodoulou & Papanicolaou, 2011), "
+           f"benchmarked over Fr {VSUM.get('dense_jet_Fr_min','-')}-{VSUM.get('dense_jet_Fr_max','-')} "
+           f"({_n} cases), the span the case study runs at: "
+           f"x_r/(D.Fr) = {VSUM.get('dense_jet_xr_over_DFr_mean','-')} (mean) vs the published 2.2-3.3 "
+           f"band - in band in {VSUM.get('dense_jet_xr_in_band','-')}/{_n} cases. Return-point dilution, "
+           f"converted from the model's bulk (top-hat) value "
            f"to the centreline minimum that the published band refers to (divide by 1.694, Gaussian "
            f"profile, lambda = 1.2): S_r(min)/Fr = {VSUM.get('dense_jet_Sr_min_over_Fr_mean','-')} "
-           "vs the published 0.4-0.6 band - in band. The uncorrected bulk value is "
+           f"vs the published 0.4-0.6 band - in band in {VSUM.get('dense_jet_Sr_min_in_band','-')}/{_n} "
+           f"cases. The uncorrected bulk value is "
            f"{VSUM.get('dense_jet_Sr_bulk_over_Fr_mean','-')} and is not directly comparable.")
-    bullet(f"Terminal rise of the same dense jet: z_t/(D.Fr) = "
-           f"{VSUM.get('dense_jet_zt_over_DFr_mean','-')} against the published 1.6-2.2 band - about "
-           "4% BELOW the lower bound. UBDS therefore under-predicts the terminal rise height of an "
-           "inclined dense jet by a few per cent. Because a lower rise gives a shorter trajectory and "
-           "less entrainment before the plume returns to the bed, this bias is conservative for "
-           "seabed salinity. It is not corrected by tuning, since raising the rise height would "
-           "require reducing entrainment and would degrade the jet-dilution and return-point "
-           "dilution agreement above.")
+    bullet(f"Terminal rise of the same dense jet: z_t/(D.Fr) = {_zt} (mean) against the published "
+           f"1.6-2.2 band - about {_zt_short:.0f}% BELOW the lower bound, and inside the band in only "
+           f"{VSUM.get('dense_jet_zt_in_band','-')} of the {_n} cases. The shortfall is not uniform: it "
+           f"grows as the Froude number falls, so it is worst at the Fr 9-11 of the saturated-cavern "
+           f"brine, which is the case that governs the seabed assessment. UBDS therefore under-predicts "
+           f"the terminal rise height of an inclined dense jet. Because a lower rise gives a shorter "
+           f"trajectory and less entrainment before the plume returns to the bed, this bias is "
+           f"conservative for seabed salinity - it over-states, not under-states, the salinity reaching "
+           f"the bed. It is not corrected by tuning, since raising the rise height would "
+           f"require reducing entrainment and would degrade the jet-dilution and return-point "
+           f"dilution agreement above.")
 add_section_figs("Validation")
 add_table_from_csv(f"{H.CSV_DIR}/V_eos_validation.csv", "Equation-of-state validation.")
 add_table_from_csv(f"{H.CSV_DIR}/V_dense_jet.csv", "Inclined dense-jet dimensionless validation.")
