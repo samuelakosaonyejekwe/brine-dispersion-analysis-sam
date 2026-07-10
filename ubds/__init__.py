@@ -14,7 +14,7 @@ framework.
 Modules
 -------
 eos        : equation of state (ambient seawater + hypersaline brine extension)
-nearfield  : sign-agnostic Lagrangian integral jet/plume element model (UBDS-NF)
+nearfield  : sign-agnostic Eulerian flux-integral jet/plume model (UBDS-NF)
 diffuser   : multi-port diffuser geometry and plume-merging logic
 hydro      : 2-D depth-averaged shallow-water hydrodynamic engine (UBDS-HD)
 transport  : quasi-3D sigma-layer advection-dispersion engine with a dense

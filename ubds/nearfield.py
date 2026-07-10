@@ -1,28 +1,29 @@
 """
-UBDS-NF : Universal near-field Lagrangian integral jet/plume model
-==================================================================
+UBDS-NF : Universal near-field Eulerian flux-integral jet/plume model
+=====================================================================
 
-A sign-agnostic Lagrangian "plume-element" integral model in the spirit of
-JETLAG (Lee & Cheung, 1990) / VISJET and the UM3 routine inside US-EPA Visual
-Plumes, but written from scratch and generalised so that the *same* equations
-describe:
+A sign-agnostic Eulerian flux-integral (top-hat) jet/plume model in the spirit
+of JETLAG (Lee & Cheung, 1990) / VISJET and the UM3 routine inside US-EPA
+Visual Plumes, but written from scratch and generalised so that the *same*
+equations describe:
 
     * negatively buoyant dense jets  (brine, reject concentrate)   g' > 0
     * positively buoyant jets        (thermal, freshwater)         g' < 0
     * neutrally buoyant jets         (tracer release)              g' = 0
 
-The plume is discretised into a chain of cylindrical elements of mass ``M``,
-radius ``b`` and thickness ``h``.  Each element is advected by its own velocity
-and grows by entraining ambient fluid through two mechanisms (the *combined
-entrainment hypothesis* of Lee & Chu, 2003):
+The conserved mass, momentum, salt and heat fluxes of a top-hat cross-section
+(radius ``b``) are integrated by 4th-order Runge-Kutta along the jet arclength
+``s`` (there is no time variable).  The cross-section grows by entraining
+ambient fluid through two mechanisms (the *combined entrainment hypothesis* of
+Lee & Chu, 2003):
 
     1. shear entrainment   - proportional to the velocity excess |V - Va|
     2. forced entrainment  - proportional to the ambient cross-flow swept area
 
 Buoyancy enters as a vertical body force g(rho_a - rho_e)/rho_e, so a dense
-brine element naturally decelerates, arcs over and sinks back to the bed, while
-a light element rises - no special-casing required.  This universality is one
-of the core novel features of UBDS.
+brine jet naturally decelerates, arcs over and sinks back to the bed, while a
+light one rises - no special-casing required.  This universality is one of the
+core novel features of UBDS.
 
 The model returns the full 3-D trajectory, the centreline and boundary plume
 geometry, the dilution-vs-distance curve and the salinity / density at the

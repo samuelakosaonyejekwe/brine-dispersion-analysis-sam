@@ -262,10 +262,46 @@ class HydroModel:
         return safety * min(self.grid.dx, self.grid.dy) / cmax
 
 
+def _decheckerboard(f, wet, passes=1, S=1.0):
+    """One-plus 1-2-1 Shapiro pass over a cell-centre field, masked to wet cells.
+
+    The staggered C-grid Coriolis terms average the cross-velocity over four
+    faces; that averaging operator has a null space at the 2*dx wavelength, so a
+    stationary checkerboard mode sits in geostrophic balance.  Bottom friction
+    damps it in the fast, shallow near-shore jet but not in the deep,
+    weak-current offshore, where it reaches O(0.8 m/s) - a computational mode
+    that carries ~zero net transport but dominates the offshore flow field.
+
+    The 1-2-1 filter has transfer function cos^2(k*dx/2): a single full pass
+    annihilates the 2*dx mode (~90% of the offshore checkerboard) while leaving
+    the resolved jet within ~1%.  Applied once to each sampled snapshot, not in
+    the dynamics - in-loop filtering cannot outpace the per-step regeneration
+    without eroding resolved scales.  Only cells whose in-line neighbours are
+    both wet are filtered, so coastlines and open boundaries are preserved.
+    """
+    out = f.copy()
+    for _ in range(passes):
+        for axis in (0, 1):
+            lap = np.zeros_like(out)
+            m = np.zeros_like(out, dtype=bool)
+            if axis == 1:
+                lap[:, 1:-1] = out[:, 2:] - 2 * out[:, 1:-1] + out[:, :-2]
+                m[:, 1:-1] = wet[:, 2:] & wet[:, 1:-1] & wet[:, :-2]
+            else:
+                lap[1:-1, :] = out[2:, :] - 2 * out[1:-1, :] + out[:-2, :]
+                m[1:-1, :] = wet[2:, :] & wet[1:-1, :] & wet[:-2, :]
+            out = np.where(m, out + 0.25 * S * lap, out)
+    return out * wet
+
+
 def run_hydro(model: HydroModel, t_end, dt=None, spin_up=0.0, sample_dt=None,
-              progress=False):
+              progress=False, decheckerboard=True):
     """
     Integrate the hydrodynamic model.
+
+    Each sampled velocity snapshot is de-checkerboarded (``_decheckerboard``)
+    to remove the 2*dx computational mode the C-grid Coriolis averaging admits
+    offshore.  Set ``decheckerboard=False`` to store the raw fields.
 
     Returns dict with sampled times and (u, v, eta) centre fields after spin_up.
     """
@@ -281,6 +317,9 @@ def run_hydro(model: HydroModel, t_end, dt=None, spin_up=0.0, sample_dt=None,
         model.step(t, dt)
         if t >= next_sample:
             uc, vc = model.velocity_centres()
+            if decheckerboard:
+                uc = _decheckerboard(uc, model.wet)
+                vc = _decheckerboard(vc, model.wet)
             times.append(t)
             U.append(uc.copy()); V.append(vc.copy()); E.append(model.eta.copy())
             next_sample += sample_dt

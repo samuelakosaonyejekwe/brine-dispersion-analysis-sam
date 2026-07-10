@@ -29,7 +29,7 @@ This repository contains the solver package (`ubds/`), the scripts that run the 
 
 ## Scientific approach
 
-**Near field — `UBDS-NF`.** A sign-agnostic Lagrangian "plume-element" integral model in the spirit of JETLAG/VISJET and the US-EPA UM3 routine, written from scratch and generalised across buoyancy sign. The plume is discretised into a chain of cylindrical elements that grow by the *combined entrainment hypothesis* (shear entrainment ∝ velocity excess, plus forced entrainment ∝ ambient cross-flow). Buoyancy enters as a vertical body force `g(ρ_a − ρ_e)/ρ_e`. The model returns the full 3-D trajectory, the dilution-versus-distance curve, and the salinity/density at seabed impact (or terminal rise height).
+**Near field — `UBDS-NF`.** A sign-agnostic Eulerian flux-integral (top-hat) jet/plume model in the spirit of JETLAG/VISJET and the US-EPA UM3 routine, written from scratch and generalised across buoyancy sign. The conserved mass, momentum, salt and heat fluxes are integrated by 4th-order Runge–Kutta along the jet arclength `s`, with the plume growing by the *combined entrainment hypothesis* (shear entrainment ∝ velocity excess, plus forced entrainment ∝ ambient cross-flow). Buoyancy enters as a vertical body force `g(ρ_a − ρ_e)/ρ_e`. The model returns the full 3-D trajectory, the dilution-versus-distance curve, and the salinity/density at seabed impact (or terminal rise height).
 
 **Hydrodynamics — `UBDS-HD`.** A 2-D depth-averaged shallow-water engine (mass and momentum with Manning friction, Coriolis and turbulent mixing) driven by tidal forcing, producing the time-varying current field.
 
@@ -60,7 +60,7 @@ case.pdf                   The full Bahía Azul case-study report (collates ever
 ubds/                      The solver package
   __init__.py              Package API and version
   eos.py                   Equation of state — seawater + hypersaline-brine extension
-  nearfield.py             Sign-agnostic Lagrangian integral jet/plume model (UBDS-NF)
+  nearfield.py             Sign-agnostic Eulerian flux-integral jet/plume model (UBDS-NF)
   diffuser.py              Multi-port diffuser geometry and plume-merging logic
   hydro.py                 2-D depth-averaged shallow-water engine (UBDS-HD)
   transport.py             Sigma-layer advection–dispersion + gravity-current closure (UBDS-FF)
