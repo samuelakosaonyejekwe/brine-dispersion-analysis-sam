@@ -668,6 +668,30 @@ PHASE_COLOURS = {"high_water": "#0072B2", "mid_ebb": "#009E73",
                  "low_water": "#D55E00", "mid_flood": "#CC79A7"}
 
 
+def vertical_profile_plot(out, phase_key, title, fname, sec, xlim=None):
+    """Vertical salinity profile through the diffuser column at one tidal phase.
+
+    Each phase used to autoscale to its own salinity range, so four genuinely
+    different profiles rendered as the same shape and could not be compared.  The
+    caller now passes one salinity axis shared by every phase.
+    """
+    sal, mids = profile_at(out, phase_key)
+    fig, ax = viz.new_ax((5.2, 6.2), title, "Salinity (psu)", "Height above seabed (m)")
+    ax.plot(sal, mids, "-o", lw=2.6, ms=6, color="#0072B2", mec="white", mew=0.8)
+    ax.axvline(C.THRESHOLDS["salinity_threshold_psu"], color="#000000", ls="--", lw=1.8,
+               label=f"{C.THRESHOLDS['salinity_threshold_psu']} psu threshold")
+    ax.axvline(C.AMBIENT["background_salinity_psu"], color="#555555", ls=":", lw=1.8,
+               label=f"{C.AMBIENT['background_salinity_psu']} psu background")
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    ax.set_ylim(0, 6)
+    ax.annotate(f"seabed {sal[0]:.2f} psu", xy=(0.97, 0.95), xycoords="axes fraction",
+                ha="right", va="top", fontsize=10, fontweight="bold", color=viz.INK)
+    ax.legend(fontsize=9, loc="upper right", bbox_to_anchor=(0.97, 0.89))
+    ax.grid(True, color=viz.GRIDC, alpha=0.6)
+    H.register("figure", viz.save(fig, f"{H.FIG_DIR}/{fname}"), title, sec)
+
+
 def vertical_profiles_plot(out, title, fname, sec):
     """One profile plus the spread across tidal phases.
 
@@ -710,6 +734,16 @@ def vertical_profiles_plot(out, title, fname, sec):
                 fontsize=11, color=viz.INK)
     ax.grid(True, color=viz.GRIDC, alpha=0.6)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/{fname}"), title, sec)
+    # The four per-phase panels this figure replaces were the only home for the
+    # individual phase curves; the mean-and-band plot cannot reproduce them.  Write
+    # them out so no number lives only inside a picture.
+    prof = pd.DataFrame({"height_above_bed_m": mids})
+    for n in names:
+        prof[f"salinity_{n}_psu"] = profile_at(out, C.SNAPSHOT_PHASES[n])[0]
+    prof["salinity_mean_psu"] = mean
+    H.write_csv(prof.round(4), "C_vertical_profiles.csv",
+                "Vertical salinity profile at the diffuser column for each neap tidal phase "
+                "(the data behind the mean-and-spread figure).", sec)
 
 
 # ===========================================================================
@@ -788,6 +822,16 @@ def part_C_medium(hydro_all):
             f"C_snap_neap_{name}.png", sec, ox, mz=mz,
             vectors=(snp["u"], snp["v"]), phase=snp.get("phase", ph),
             zoom_box=MZOOM)
+
+    # One salinity axis shared by every phase, so the four panels are comparable.
+    _allsal = np.concatenate([profile_at(out9n, ph)[0] for ph in C.SNAPSHOT_PHASES.values()])
+    _lo = min(_allsal.min(), C.AMBIENT["background_salinity_psu"])
+    _pad = 0.06 * (_allsal.max() - _lo) or 0.5
+    _vxlim = (_lo - _pad, _allsal.max() + _pad)
+    for name, ph in C.SNAPSHOT_PHASES.items():
+        vertical_profile_plot(out9n, ph,
+            f"Vertical salinity profile at {name.replace('_',' ')} - neap (saturated cavern brine)",
+            f"C_vprof_neap_{name}.png", sec, xlim=_vxlim)
 
     vertical_profiles_plot(out9n,
         "Vertical salinity profiles at the diffuser column - all tidal phases "

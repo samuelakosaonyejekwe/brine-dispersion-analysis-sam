@@ -82,7 +82,7 @@ validation/
 
 outputs/
   figures/                 Charts, maps, contours, dilution curves, current vectors, profiles
-  csv/                     The tabular data behind every figure
+  csv/                     The tabular data behind every tabulated result
   animations/              GIF animations + filmstrip of the dispersion over a tidal cycle
 ```
 
