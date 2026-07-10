@@ -29,6 +29,8 @@ geometry, the dilution-vs-distance curve and the salinity / density at the
 point of seabed impact (or terminal rise height).
 """
 
+import warnings
+
 import numpy as np
 from dataclasses import dataclass, field
 from . import eos
@@ -79,6 +81,7 @@ class NearFieldResult:
     dilution: np.ndarray     # bulk dilution S0/S (concentration dilution)
     impact_index: int        # index where plume first returns to the bed
     merged_from: int = field(default=1)  # number of merged ports
+    termination: str = field(default="max_steps")  # why integration stopped
 
     # --- convenience scalars at seabed impact -------------------------------
     @property
@@ -214,6 +217,7 @@ def simulate_port(disch: Discharge, amb: Ambient,
     impact_index = None
     z_prev = disch.z0
     rose = False
+    termination = "max_steps"
 
     for step in range(max_steps):
         dy, b, S, rho_e = deriv(y)
@@ -242,22 +246,41 @@ def simulate_port(disch: Discharge, amb: Ambient,
             rec["z"].append(0.0); rec["b"].append(b); rec["speed"].append(w)
             rec["sal"].append(S); rec["rho"].append(rho_e); rec["dil"].append(dil)
             impact_index = len(rec["s"]) - 1
+            termination = "seabed"
             break
         if y[8] >= amb.depth:                       # surfaced (buoyant case)
             impact_index = len(rec["s"]) - 1
+            termination = "surface"
             break
-        if np.linalg.norm(y[1:4] / max(y[0], 1e-12) - Va) < 0.03 * u0 and step > 20:
+        # Excess-momentum cutoff: the element has been absorbed into the ambient
+        # flow.  This must NOT be applied while the element is still denser than
+        # the ambient: a dense plume passes through a speed minimum at the top of
+        # its arc (vertical velocity changes sign there), and applying the test
+        # would stop the integration at the apex instead of at seabed contact.
+        # A dense element still has buoyancy left to drive it back to the bed, so
+        # only a neutral or buoyant element may terminate this way.
+        _, _, _, _, _, rho_e_now, _, _ = unpack(y)
+        if rho_e_now <= rho_a and step > 20 and \
+                np.linalg.norm(y[1:4] / max(y[0], 1e-12) - Va) < 0.03 * u0:
             impact_index = len(rec["s"]) - 1
+            termination = "stalled"
             break
         z_prev = y[8]
 
     arr = {k: np.asarray(v) for k, v in rec.items()}
     if impact_index is None:
         impact_index = len(arr["s"]) - 1
+    if termination != "seabed" and eos.density(arr["sal"][impact_index],
+                                               disch.temperature) > rho_a:
+        warnings.warn(
+            f"UBDS-NF: dense plume did not reach the seabed (termination="
+            f"{termination!r}, z={arr['z'][impact_index]:.2f} m). Scalars named "
+            f"'impact_*' are NOT seabed values for this run.", RuntimeWarning)
     return NearFieldResult(
         s=arr["s"], x=arr["x"], y=arr["y"], z=arr["z"], b=arr["b"],
         speed=arr["speed"], salinity=arr["sal"], density=arr["rho"],
-        dilution=arr["dil"], impact_index=int(impact_index))
+        dilution=arr["dil"], impact_index=int(impact_index),
+        termination=termination)
 
 
 def simulate(disch: Discharge, amb: Ambient, n_ports: int = 1,

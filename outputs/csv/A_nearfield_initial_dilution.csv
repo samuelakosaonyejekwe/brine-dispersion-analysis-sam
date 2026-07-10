@@ -1,19 +1,19 @@
-brine,scenario,flow_m3hr,n_ports,tide,velocity_ms,exit_velocity_ms,dilution,seabed_salinity_psu,rise_height_m,impact_distance_m
-RO concentrate,S1,300,1,slack,0.08,4.57,16.9,38.36,5.48,4.0
-RO concentrate,S1,300,1,neap,0.28,4.57,21.4,37.97,4.01,3.16
-RO concentrate,S1,300,1,spring,0.55,4.57,24.2,37.8,3.17,3.73
-RO concentrate,S2,700,1,slack,0.08,10.66,24.9,37.77,10.14,6.22
-RO concentrate,S2,700,1,neap,0.28,10.66,28.0,37.63,7.01,4.42
-RO concentrate,S2,700,1,spring,0.55,10.66,29.6,37.56,5.29,4.03
-RO concentrate,S3,1200,2,slack,0.08,9.14,23.3,37.85,9.21,5.77
-RO concentrate,S3,1200,2,neap,0.28,9.14,26.8,37.68,6.36,4.12
-RO concentrate,S3,1200,2,spring,0.55,9.14,28.9,37.59,4.85,3.96
-Saturated cavern brine,S1,300,1,slack,0.08,4.57,14.3,51.4,2.65,3.35
-Saturated cavern brine,S1,300,1,neap,0.28,4.57,28.7,43.95,2.36,3.58
-Saturated cavern brine,S1,300,1,spring,0.55,4.57,44.3,41.32,2.11,5.95
-Saturated cavern brine,S2,700,1,slack,0.08,10.66,31.6,43.27,5.7,8.14
-Saturated cavern brine,S2,700,1,neap,0.28,10.66,16.7,49.3,4.99,3.73
-Saturated cavern brine,S2,700,1,spring,0.55,10.66,18.7,47.89,4.24,3.19
-Saturated cavern brine,S3,1200,2,slack,0.08,9.14,27.1,44.39,4.93,6.92
-Saturated cavern brine,S3,1200,2,neap,0.28,9.14,52.8,40.54,4.34,7.33
-Saturated cavern brine,S3,1200,2,spring,0.55,9.14,17.5,48.72,3.75,2.97
+brine,scenario,flow_m3hr,n_ports,tide,velocity_ms,exit_velocity_ms,dilution,seabed_salinity_psu,rise_height_m,impact_distance_m,termination
+RO concentrate,S1,300,1,slack,0.08,4.57,58.2,37.04,5.51,8.6,seabed
+RO concentrate,S1,300,1,neap,0.28,4.57,122.1,36.76,4.31,19.75,seabed
+RO concentrate,S1,300,1,spring,0.55,4.57,161.6,36.69,3.58,39.24,seabed
+RO concentrate,S2,700,2,slack,0.08,5.33,67.4,36.97,6.39,10.08,seabed
+RO concentrate,S2,700,2,neap,0.28,5.33,140.5,36.72,4.97,22.95,seabed
+RO concentrate,S2,700,2,spring,0.55,5.33,185.9,36.67,4.11,45.51,seabed
+RO concentrate,S3,1200,4,slack,0.08,4.57,58.2,37.04,5.51,8.6,seabed
+RO concentrate,S3,1200,4,neap,0.28,4.57,122.1,36.76,4.31,19.75,seabed
+RO concentrate,S3,1200,4,spring,0.55,4.57,161.6,36.69,3.58,39.24,seabed
+Saturated cavern brine,S1,300,1,slack,0.08,4.57,14.3,51.4,2.65,3.35,seabed
+Saturated cavern brine,S1,300,1,neap,0.28,4.57,28.7,43.95,2.36,3.58,seabed
+Saturated cavern brine,S1,300,1,spring,0.55,4.57,44.3,41.32,2.11,5.95,seabed
+Saturated cavern brine,S2,700,2,slack,0.08,5.33,16.5,49.48,3.03,3.95,seabed
+Saturated cavern brine,S2,700,2,neap,0.28,5.33,32.8,43.0,2.69,4.21,seabed
+Saturated cavern brine,S2,700,2,spring,0.55,5.33,50.1,40.76,2.39,6.89,seabed
+Saturated cavern brine,S3,1200,4,slack,0.08,4.57,14.3,51.4,2.65,3.35,seabed
+Saturated cavern brine,S3,1200,4,neap,0.28,4.57,28.7,43.95,2.36,3.58,seabed
+Saturated cavern brine,S3,1200,4,spring,0.55,4.57,44.3,41.32,2.11,5.95,seabed

@@ -11,6 +11,7 @@ No pure black is used anywhere (text and headings use dark navy #1B2A4A).
 Author: Akosa Samuel Onyejekwe (Independent Researcher)
 """
 import os, json, pickle
+import numpy as np
 import pandas as pd
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
@@ -18,6 +19,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 import case_inputs as C
 import run_helpers as H
+from ubds import eos
 
 INK = RGBColor(0x1B, 0x2A, 0x4A)
 ACCENT = RGBColor(0x2A, 0x6F, 0x97)
@@ -25,6 +27,20 @@ MANIFEST = json.load(open(H.MANIFEST))
 RESULTS = pickle.load(open("outputs/results.pkl", "rb"))
 VSUM = json.load(open("validation/validation_summary.json")) if os.path.exists(
     "validation/validation_summary.json") else {}
+
+# --- jet Froude number of every near-field run, vs the validated envelope -----
+_nfcsv = pd.read_csv(f"{H.CSV_DIR}/A_nearfield_initial_dilution.csv")
+_ra = eos.density(C.AMBIENT["background_salinity_psu"], C.AMBIENT["background_temperature_C"])
+def _fr(row):
+    if row.brine == "RO concentrate":
+        S0, T0 = C.BRINE["ro_salinity_psu"], C.AMBIENT["background_temperature_C"] + C.BRINE["ro_excess_temp_C"]
+    else:
+        S0, T0 = C.BRINE["cavern_salinity_psu"], C.AMBIENT["background_temperature_C"] + C.BRINE["cavern_excess_temp_C"]
+    gp = 9.81 * (eos.density(S0, T0) - _ra) / _ra
+    return row.exit_velocity_ms / np.sqrt(gp * C.DIFFUSER["port_diameter_m"])
+_nfcsv["Fr"] = _nfcsv.apply(_fr, axis=1)
+_FR_VALID = 33.3          # upper Fr of the inclined dense-jet validation set
+_out = _nfcsv[_nfcsv.Fr > _FR_VALID]
 
 doc = Document()
 
@@ -57,34 +73,55 @@ def add_fig(a, width=5.7):
     cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
+_EMITTED_SECTIONS = set()
+
+
 def add_section_figs(section, width=5.7):
-    for a in figs(section):
+    found = figs(section)
+    if not found:
+        raise KeyError(f"no figures registered for section {section!r} - "
+                       "check the manifest, do not silently emit nothing")
+    _EMITTED_SECTIONS.add(section)
+    for a in found:
         add_fig(a, width)
 
 
-def add_table_from_csv(path, caption, max_rows=40):
+def add_table_from_csv(path, caption, max_rows=40, drop_cols=()):
+    # A missing CSV means the pipeline did not produce a table the report claims
+    # to show.  Failing loudly here is what surfaces that; returning silently is
+    # how a missing table can sit unnoticed in a published report.
     if not os.path.exists(path):
-        return
+        raise FileNotFoundError(f"table source missing: {path}")
     df = pd.read_csv(path)
+    if drop_cols:
+        df = df.drop(columns=list(drop_cols))
     if len(df) > max_rows:
-        df = df.head(max_rows)
+        raise ValueError(f"{path}: {len(df)} rows exceeds max_rows={max_rows}; "
+                         "truncating would silently drop data")
     p = doc.add_paragraph()
     r = p.add_run("Table. " + caption); r.italic = True; r.font.size = Pt(9)
     r.font.color.rgb = INK
     t = doc.add_table(rows=1, cols=len(df.columns))
     t.style = "Light Grid Accent 1"
+    # Let Word size columns to their content.  With fixed equal widths a wide
+    # table wraps numbers mid-value ("356.3" -> "356. 3"), which misreads badly.
+    t.autofit = True
+    t.allow_autofit = True
+    t._tbl.tblPr.xpath("./w:tblLayout") and [
+        e.getparent().remove(e) for e in t._tbl.tblPr.xpath("./w:tblLayout")]
+    fsz = Pt(8.5) if len(df.columns) <= 8 else Pt(7.5)
     for j, c in enumerate(df.columns):
         cell = t.rows[0].cells[j]; cell.text = str(c)
         for pp in cell.paragraphs:
             for rr in pp.runs:
-                rr.font.bold = True; rr.font.size = Pt(8.5); rr.font.color.rgb = INK
+                rr.font.bold = True; rr.font.size = fsz; rr.font.color.rgb = INK
     for _, row in df.iterrows():
         cells = t.add_row().cells
         for j, c in enumerate(df.columns):
             cells[j].text = str(row[c])
             for pp in cells[j].paragraphs:
                 for rr in pp.runs:
-                    rr.font.size = Pt(8.5); rr.font.color.rgb = INK
+                    rr.font.size = fsz; rr.font.color.rgb = INK
     doc.add_paragraph("")
 
 
@@ -132,7 +169,7 @@ para(
  "across negatively buoyant (brine), positively buoyant (thermal) and neutral "
  "discharges.")
 para(
- f"For the proposed inclined two-port diffuser, the near-field initial dilution of "
+ f"For the proposed inclined {C.DIFFUSER['n_ports_installed']}-port diffuser, the near-field initial dilution of "
  f"the reverse-osmosis (RO) concentrate at first seabed contact ranges between "
  f"x{nf_ro.dilution.min():.0f} and x{nf_ro.dilution.max():.0f} across the flow and "
  f"tidal range, corresponding to seabed salinities of "
@@ -140,19 +177,34 @@ para(
  f"against a background of {C.AMBIENT['background_salinity_psu']} psu.")
 if far is not None:
     s3 = far[far.scenario == "S3"].iloc[0]
+    if s3.area_0p5psu_km2 > 0:
+        _area = (f"the salinity increment of 0.5 psu above background is confined to an area of "
+                 f"{s3.area_0p5psu_km2:.3f} km2")
+    else:
+        _area = ("the seabed salinity increment nowhere reaches 0.5 psu above background, so no "
+                 "0.5 psu influence area exists in the RO base case")
     para(
      f"The medium- and far-field assessment confirms that, at the maximum discharge "
-     f"of {C.SCENARIOS[-1]['flow_m3hr']} m3/hr, the salinity increment of 0.5 psu "
-     f"above background is confined to an area of {s3.area_0p5psu_km2:.3f} km2, with "
+     f"of {C.SCENARIOS[-1]['flow_m3hr']} m3/hr, {_area}, with "
      f"the {C.THRESHOLDS['salinity_threshold_psu']} psu threshold not exceeded beyond "
      f"{s3.mixing_zone_radius_m:.0f} m from the diffuser - well within the "
      f"{C.THRESHOLDS['mixing_zone_radius_m']:.0f} m regulatory mixing zone. All trace "
-     f"impurities remain below their Environmental Quality Standards after dilution.")
+     f"impurities remain below their Environmental Quality Standards after dilution. "
+     + (f"The RO near-field dilutions above are extrapolated beyond the validated Froude "
+        f"range (see section 4); the saturated-cavern-brine worst case, which lies inside "
+        f"the validated range, governs the seabed-salinity assessment."
+        if len(_out) else
+        f"Every near-field run lies inside the Froude range over which the entrainment "
+        f"closure is validated (see section 4); the saturated-cavern-brine worst case "
+        f"governs the seabed-salinity assessment."))
 para(
- "The solver was validated against canonical self-similar jet and plume dilution "
- "laws, published inclined dense-jet experimental data, reference seawater/brine "
- "densities, and a synthetic ADCP current-meter dataset; all benchmarks are met. "
- "Data sources are recorded in the Validation section.")
+ "The solver was tested against canonical self-similar jet and plume dilution laws, "
+ "published inclined dense-jet experimental data, reference seawater/brine densities, "
+ "and a synthetic ADCP current-meter dataset. The equation of state, the dense-jet "
+ "return distance and the dense-jet return-point dilution fall inside their reference "
+ "ranges; the round-jet dilution slope, the pure-plume exponent and the dense-jet "
+ "terminal rise fall a few per cent outside theirs. Each deviation is quantified in the "
+ "Validation section rather than asserted away. Data sources are recorded there also.")
 
 # ===========================================================================
 # 1 INTRODUCTION & SOLVER
@@ -249,9 +301,44 @@ add_table_from_csv(f"{H.CSV_DIR}/B_current_validation_skill.csv",
 h1("4  Near-Field Initial Dilution")
 para("The near-field initial dilution was computed with the UBDS integral jet/plume engine "
      "for both brine types, all flow scenarios and a range of tidal velocities (slack, neap "
-     "and spring).")
+     "and spring). Dilution is the bulk (flux-averaged, top-hat) dilution, and salinity is "
+     "reported at first contact with the seabed; every run in the table below is verified to "
+     "terminate on seabed contact.")
+
+_depth = C.AMBIENT["outfall_depth_m"]
+_rise_frac = 100 * _nfcsv.rise_height_m.max() / _depth
+if not len(_out):
+    para(
+      f"Validity of the near-field results. The entrainment closure is validated against "
+      f"inclined dense-jet data over 12.8 <= Fr <= {_FR_VALID:.1f}. Every one of the "
+      f"{len(_nfcsv)} runs below lies inside that range (maximum Fr = {_nfcsv.Fr.max():.1f}), "
+      f"because the diffuser stages ports in with flow and so holds the per-port exit "
+      f"velocity between {_nfcsv.exit_velocity_ms.min():.2f} and "
+      f"{_nfcsv.exit_velocity_ms.max():.2f} m/s. The greatest predicted plume rise is "
+      f"{_nfcsv.rise_height_m.max():.1f} m in {_depth:.0f} m of water "
+      f"({100 * _nfcsv.rise_height_m.max() / _depth:.0f}% of the water column), so the "
+      f"free surface, which the model does not impose, is not approached.")
+else:
+    para(
+      f"Validity of the near-field results. The entrainment closure is validated against "
+      f"inclined dense-jet data over 12.8 <= Fr <= {_FR_VALID:.1f} and against vertical dense-jet "
+      f"initial-dilution data over 7.4 <= Fr <= 14.8. {len(_out)} of the {len(_nfcsv)} runs in the "
+      f"table below exceed that range, reaching Fr = {_nfcsv.Fr.max():.0f}: these are the "
+      f"RO-concentrate cases, whose brine is only "
+      f"{C.BRINE['ro_salinity_psu']:.0f} psu and therefore only weakly dense, giving a high jet "
+      f"Froude number and correspondingly high dilution. Their predicted dilutions "
+      f"(up to x{_nfcsv.dilution.max():.0f}) are EXTRAPOLATIONS beyond the validated envelope and "
+      f"should be treated as indicative rather than design values. In addition, the greatest "
+      f"predicted plume rise is {_nfcsv.rise_height_m.max():.1f} m in {_depth:.0f} m of water "
+      f"({_rise_frac:.0f}% of the water column); the model does not impose a free-surface "
+      f"constraint, so a run that approaches the surface will over-predict rise and hence "
+      f"trajectory length and entrainment. The saturated-cavern-brine cases, which are the "
+      f"worst case for seabed salinity, all lie inside the validated Fr range and are not "
+      f"affected by either caveat.")
 add_table_from_csv(f"{H.CSV_DIR}/A_nearfield_initial_dilution.csv",
-                   "Near-field initial-dilution results.", max_rows=60)
+                   "Near-field initial-dilution results. Every run terminates on seabed contact; the "
+                   "termination check is retained in the CSV.", max_rows=60,
+                   drop_cols=("termination",))
 add_section_figs("Near-field initial dilution")
 
 # ===========================================================================
@@ -261,12 +348,24 @@ h1("5  Medium-Field Dispersion")
 para("The medium-field dispersion was simulated with the sigma-layer transport engine driven "
      "by the calibrated tidal currents, including a layer-resolution sensitivity test and the "
      "near-field-coupled brine source. Maximum-salinity envelopes, tidal-phase snapshots with "
-     "current vectors, and vertical profiles through the diffuser are presented.")
+     "current vectors, and vertical profiles through the diffuser are presented. Every "
+     "medium-field run in this section uses the SATURATED CAVERN BRINE source at full flow - "
+     "the phase-2 worst case, not the RO concentrate of the base case. The medium-field seabed "
+     "salinities are therefore not comparable with the far-field values of section 6, which are "
+     "computed for RO concentrate unless a figure states otherwise.")
 ls = RESULTS.get("layer_sensitivity", {})
 if ls:
+    _vals = [v for _, v in sorted(ls.items())]
+    _converged = abs(_vals[-1] - _vals[-2]) / _vals[-1] < 0.01 if len(_vals) > 1 else False
     para("Layer-resolution sensitivity (maximum seabed salinity, psu): " +
          ", ".join(f"{k}-layer = {v:.1f}" for k, v in sorted(ls.items())) +
-         ". The 9-layer scheme was adopted for the production runs.")
+         ". The 9-layer scheme was adopted for the production runs. " +
+         ("The peak is grid-converged in the vertical." if _converged else
+          f"The peak salinity is NOT converged in the vertical: it continues to rise with layer "
+          f"count, so the adopted 9-layer scheme under-predicts the 14-layer peak by "
+          f"{100*(_vals[-1]-_vals[1])/_vals[-1]:.1f}%. Peak seabed salinity in this section should "
+          f"therefore be read as a lower bound; the mixing-zone and area metrics, which depend on "
+          f"the salinity field away from the peak cell, are far less sensitive to layer count."))
 add_section_figs("Medium-field dispersion")
 
 # ===========================================================================
@@ -300,6 +399,8 @@ add_table_from_csv(f"{H.CSV_DIR}/H_table1A_southward.csv",
                    "Rise in salinity at intake above ambient - southward current 0.25 m/s.")
 add_table_from_csv(f"{H.CSV_DIR}/H_table1B_weak.csv",
                    "Rise in salinity at intake above ambient - weak southward current 0.05 m/s.")
+add_table_from_csv(f"{H.CSV_DIR}/H_table1C_northward.csv",
+                   "Rise in salinity at intake above ambient - northward current 0.25 m/s.")
 add_section_figs("Outfall siting & recirculation")
 
 # ===========================================================================
@@ -314,22 +415,40 @@ add_section_figs("Inputs, parameters & water quality")
 # 9 VALIDATION
 # ===========================================================================
 h1("10  Validation and Data Sources")
-para("UBDS was validated against the following independent benchmarks:")
+para("UBDS was tested against the following independent benchmarks. Where the model and the "
+     "reference quantity are defined differently, the model value is converted before comparison "
+     "and the conversion is stated; agreement is reported as measured, including where the model "
+     "falls outside the published band.")
 if VSUM:
     bullet(f"Equation of state: maximum error {VSUM.get('eos_max_error_pct','-')}% vs reference "
-           "seawater/brine densities (UNESCO EOS-80; CRC Handbook).")
-    bullet(f"Momentum jet: dilution slope {VSUM.get('jet_dilution_slope_perZD','-')} per z/D and "
-           f"spread {VSUM.get('jet_spread_dbdz','-')} vs canonical 0.25-0.32 and ~0.11 "
-           "(Fischer, List, Koh, Imberger & Brooks, 1979).")
+           "seawater/brine densities (UNESCO EOS-80; CRC Handbook). Within tolerance.")
+    bullet(f"Momentum jet: volume-flux dilution slope {VSUM.get('jet_dilution_slope_perZD','-')} "
+           f"per z/D and spread {VSUM.get('jet_spread_dbdz','-')} vs canonical 0.25-0.32 and ~0.11 "
+           "(Fischer, List, Koh, Imberger & Brooks, 1979). The spread is reproduced; the dilution "
+           "slope sits about 9% below the lower end of the canonical range, i.e. the model entrains "
+           "slightly less than the canonical round jet.")
     bullet(f"Pure plume: volume-flux exponent {VSUM.get('plume_dilution_exponent','-')} vs the "
-           "5/3 power law (Morton, Taylor & Turner, 1956).")
-    bullet(f"Inclined 60 deg dense jet: z_t/(D.Fr) = {VSUM.get('dense_jet_zt_over_DFr_mean','-')} "
-           f"and S_r/Fr = {VSUM.get('dense_jet_Sr_over_Fr_mean','-')} vs published ranges "
-           "1.6-2.2 and 0.4-0.6 (Papakonstantis, Christodoulou & Papanicolaou, 2011).")
+           "5/3 = 1.667 power law (Morton, Taylor & Turner, 1956); about 4% below the analytical "
+           "exponent.")
+    bullet(f"Inclined 60 deg dense jet (Papakonstantis, Christodoulou & Papanicolaou, 2011): "
+           f"x_r/(D.Fr) = {VSUM.get('dense_jet_xr_over_DFr_mean','-')} vs the published 2.2-3.3 "
+           "band - in band. Return-point dilution, converted from the model's bulk (top-hat) value "
+           f"to the centreline minimum that the published band refers to (divide by 1.694, Gaussian "
+           f"profile, lambda = 1.2): S_r(min)/Fr = {VSUM.get('dense_jet_Sr_min_over_Fr_mean','-')} "
+           "vs the published 0.4-0.6 band - in band. The uncorrected bulk value is "
+           f"{VSUM.get('dense_jet_Sr_bulk_over_Fr_mean','-')} and is not directly comparable.")
+    bullet(f"Terminal rise of the same dense jet: z_t/(D.Fr) = "
+           f"{VSUM.get('dense_jet_zt_over_DFr_mean','-')} against the published 1.6-2.2 band - about "
+           "4% BELOW the lower bound. UBDS therefore under-predicts the terminal rise height of an "
+           "inclined dense jet by a few per cent. Because a lower rise gives a shorter trajectory and "
+           "less entrainment before the plume returns to the bed, this bias is conservative for "
+           "seabed salinity. It is not corrected by tuning, since raising the rise height would "
+           "require reducing entrainment and would degrade the jet-dilution and return-point "
+           "dilution agreement above.")
 add_section_figs("Validation")
 add_table_from_csv(f"{H.CSV_DIR}/V_eos_validation.csv", "Equation-of-state validation.")
 add_table_from_csv(f"{H.CSV_DIR}/V_dense_jet.csv", "Inclined dense-jet dimensionless validation.")
-h2("9.1  Data sources")
+h2("10.1  Data sources")
 sources = [
  "Fischer, H.B., List, E.J., Koh, R.C.Y., Imberger, J. & Brooks, N.H. (1979). Mixing in "
  "Inland and Coastal Waters. Academic Press. [jet/plume dilution laws]",
@@ -353,6 +472,12 @@ sources = [
 for s in sources:
     bullet(s)
 
+h2("10.2  Supporting data plots")
+para("Derived plots summarising the tabulated results above: seabed dilution against tidal "
+     "velocity, salinity-increment area against discharge flow, and the per-station "
+     "index-of-agreement for the current calibration.")
+add_section_figs("Data plots")
+
 # ===========================================================================
 # 10 CONCLUSIONS
 # ===========================================================================
@@ -360,7 +485,7 @@ h1("11  Conclusions")
 para("The UBDS solver provides a single, open, physically-validated framework spanning the "
      "near-, medium- and far-field dispersion of brine and other buoyant effluents. Applied to "
      "the Bahia Azul case study with fully documented, credible site-specific inputs, it "
-     "demonstrates that the proposed inclined two-port diffuser achieves effective initial "
+     f"demonstrates that the proposed inclined {C.DIFFUSER['n_ports_installed']}-port diffuser achieves effective initial "
      "dilution and confines significant salinity increments and all trace impurities to within "
      "the regulatory mixing zone, across the full range of discharge flows and tidal states.")
 
@@ -395,7 +520,14 @@ h2("B.3  Datasets (CSV)")
 for i, a in enumerate([x for x in MANIFEST if x["kind"] == "csv"], 1):
     bullet(f"{i:02d}. {os.path.basename(a['path'])} - {a['caption']}")
 
+_all_fig_sections = {a["section"] for a in MANIFEST if a["kind"] == "figure"}
+_unshown = _all_fig_sections - _EMITTED_SECTIONS
+if _unshown:
+    raise AssertionError(f"figures registered but never placed in the report: {sorted(_unshown)}")
+
 doc.save("case.docx")
 nf_ = sum(1 for a in MANIFEST if a["kind"] == "figure")
 nc_ = sum(1 for a in MANIFEST if a["kind"] == "csv")
-print(f"case.docx written: {nf_} figures, {nc_} datasets embedded/listed.")
+_embedded = sum(len(figs(s)) for s in _EMITTED_SECTIONS)
+assert _embedded == nf_, f"embedded {_embedded} figures but manifest has {nf_}"
+print(f"case.docx written: {nf_} figures ({_embedded} embedded), {nc_} datasets.")

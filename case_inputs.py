@@ -76,11 +76,16 @@ BRINE = dict(
 # commissioning and ramp-up flows; the second port is opened for full capacity.
 # Tideflex-type duckbill ports, 6 inch nominal.
 SCENARIOS = [
-    dict(id="S1", label="Commissioning (1 port)", flow_m3hr=300,  n_ports=1),
-    dict(id="S2", label="Ramp-up (1 port)",       flow_m3hr=700,  n_ports=1),
-    dict(id="S3", label="Full capacity (2 ports)", flow_m3hr=1200, n_ports=2),
+    dict(id="S1", label="Commissioning (1 port)",  flow_m3hr=300,  n_ports=1),
+    dict(id="S2", label="Ramp-up (2 ports)",       flow_m3hr=700,  n_ports=2),
+    dict(id="S3", label="Full capacity (4 ports)", flow_m3hr=1200, n_ports=4),
 ]
-PORT_SWITCH_FLOW = 700.0          # >this flow activates the second port
+# Ports are staged in with flow so that the per-port exit velocity stays inside
+# the 3-7 m/s design band for a 6-inch duckbill.  A single port carrying the
+# full 1200 m3/hr would exit at 18 m/s; two ports at 9.1 m/s, which costs ~6 m
+# of extra head and drives the jet Froude number far outside the range over
+# which the near-field entrainment closure is validated (Fr <= 33).
+PORT_SWITCH_FLOW = 500.0          # >this flow brings the additional ports online
 
 # Tidal current states sampled for the near-field initial-dilution study
 TIDAL_STATES = [
@@ -93,7 +98,7 @@ TIDAL_STATES = [
 # 2.  DIFFUSER GEOMETRY
 # ===========================================================================
 DIFFUSER = dict(
-    n_ports_installed=2,
+    n_ports_installed=4,
     port_spacing_m=20.0,
     port_diameter_m=0.1524,       # 6 inch
     port_height_m=0.80,           # above seabed

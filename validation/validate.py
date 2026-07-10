@@ -23,6 +23,18 @@ os.makedirs(H.FIG_DIR, exist_ok=True)
 os.makedirs(H.CSV_DIR, exist_ok=True)
 SUMMARY = {}
 
+# UBDS integrates top-hat (flux-averaged) fluxes, so ``impact_dilution`` is a BULK
+# dilution.  Published dense-jet dilutions (Papakonstantis et al. 2011; Roberts et
+# al. 1997) are centreline MINIMUM dilutions, measured on the plume axis.  For a
+# Gaussian concentration profile of spread lambda*b relative to the velocity
+# half-width b, the flux-averaged concentration is lambda^2/(1+lambda^2) of the
+# centreline value, so S_min = S_bulk * lambda^2/(1+lambda^2).  With the standard
+# lambda = 1.2 this is S_min = S_bulk / 1.694.  Comparing the model's bulk value
+# directly against a centreline band would overstate the model's dilution by this
+# factor; the conversion is applied wherever the published band is quoted.
+LAMBDA_C = 1.2
+BULK_TO_MIN = (1.0 + LAMBDA_C ** 2) / LAMBDA_C ** 2   # 1.694
+
 
 # ---------------------------------------------------------------------------
 # 1. Equation of state vs reference seawater/brine densities
@@ -138,21 +150,35 @@ def validate_dense_jet():
         rows.append(dict(Fr=round(Fr, 1),
                          zt_over_DFr=round(z_t / (D * Fr), 3),
                          xr_over_DFr=round(x_r / (D * Fr), 3),
-                         Sr_over_Fr=round(S_r / Fr, 3)))
+                         Sr_bulk_over_Fr=round(S_r / Fr, 3),
+                         Sr_min_over_Fr=round(S_r / (BULK_TO_MIN * Fr), 3),
+                         termination=r.termination))
     d = pd.DataFrame(rows)
+    if (d.termination != "seabed").any():
+        raise RuntimeError("dense-jet benchmark: a case failed to reach the seabed: "
+                           f"{d[d.termination != 'seabed'].to_dict('records')}")
     H.write_csv(d, "V_dense_jet.csv",
-                "Inclined (60 deg) dense-jet dimensionless geometry/dilution vs published ranges.",
+                "Inclined (60 deg) dense-jet dimensionless geometry/dilution vs published ranges. "
+                "S_r is reported both as the model's bulk (top-hat) dilution and converted to the "
+                "centreline minimum dilution, which is what the published band refers to.",
                 "Validation")
     SUMMARY["dense_jet_zt_over_DFr_mean"] = round(float(d.zt_over_DFr.mean()), 3)
-    SUMMARY["dense_jet_Sr_over_Fr_mean"] = round(float(d.Sr_over_Fr.mean()), 3)
+    SUMMARY["dense_jet_xr_over_DFr_mean"] = round(float(d.xr_over_DFr.mean()), 3)
+    SUMMARY["dense_jet_Sr_bulk_over_Fr_mean"] = round(float(d.Sr_bulk_over_Fr.mean()), 3)
+    SUMMARY["dense_jet_Sr_min_over_Fr_mean"] = round(float(d.Sr_min_over_Fr.mean()), 3)
     # plot vs published bands
     fig, ax = viz.new_ax((7.5, 5), "Inclined dense-jet validation (60 deg) vs published data",
                          "Jet densimetric Froude number Fr", "Dimensionless value")
     ax.plot(d.Fr, d.zt_over_DFr, "-o", color="#2a6f97", label="UBDS z_t/(D·Fr)")
     ax.axhspan(1.6, 2.2, color="#2a6f97", alpha=0.15, label="Papakonstantis (2011) z_t band")
-    ax.plot(d.Fr, d.Sr_over_Fr, "-s", color="#d1495b", label="UBDS S_r/Fr")
-    ax.axhspan(0.4, 0.6, color="#d1495b", alpha=0.15, label="Papakonstantis (2011) S_r band")
-    ax.legend(fontsize=8)
+    ax.plot(d.Fr, d.xr_over_DFr, "-^", color="#3a9278", label="UBDS x_r/(D·Fr)")
+    ax.axhspan(2.2, 3.3, color="#3a9278", alpha=0.10, label="Papakonstantis (2011) x_r band")
+    ax.plot(d.Fr, d.Sr_min_over_Fr, "-s", color="#d1495b",
+            label=f"UBDS S_r(min)/Fr  [bulk ÷ {BULK_TO_MIN:.2f}]")
+    ax.plot(d.Fr, d.Sr_bulk_over_Fr, ":s", color="#d1495b", alpha=0.55,
+            label="UBDS S_r(bulk)/Fr  [not directly comparable]")
+    ax.axhspan(0.4, 0.6, color="#d1495b", alpha=0.15, label="Papakonstantis (2011) S_r(min) band")
+    ax.legend(fontsize=7)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/V_dense_jet.png"),
                "Inclined 60 deg dense-jet dimensionless rise and dilution vs published experimental bands.",
                "Validation")

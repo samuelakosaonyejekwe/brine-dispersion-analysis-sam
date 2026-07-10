@@ -320,11 +320,19 @@ def part_A_nearfield():
                                  dilution=round(r.impact_dilution, 1),
                                  seabed_salinity_psu=round(r.impact_salinity, 2),
                                  rise_height_m=round(r.rise_height, 2),
-                                 impact_distance_m=round(r.impact_distance, 2)))
+                                 impact_distance_m=round(r.impact_distance, 2),
+                                 termination=r.termination))
                 traj_store[(bname, sc["id"], ts["label"])] = r
     dfres = pd.DataFrame(rows)
+    # Every dense-brine run must actually reach the bed, otherwise the columns
+    # named seabed_* / impact_* describe some other point on the trajectory.
+    _bad = dfres[dfres.termination != "seabed"]
+    if len(_bad):
+        raise RuntimeError("near-field runs that never reached the seabed - the "
+                           f"'seabed_salinity_psu' column would be mislabelled:\n{_bad}")
     H.write_csv(dfres, "A_nearfield_initial_dilution.csv",
-                "Near-field initial-dilution results for all brine types, flow scenarios and tidal states.", sec)
+                "Near-field initial-dilution results (bulk top-hat dilution and salinity at first "
+                "seabed contact) for all brine types, flow scenarios and tidal states.", sec)
     RESULTS["nearfield"] = dfres
 
     # trajectory + dilution figures (RO concentrate, per scenario)
@@ -662,7 +670,7 @@ def part_C_medium(hydro_all):
         out = run_transport_case("medium", med_n, nl, BRINE_CAVERN, sc3, "spring_neap", "neap")
         sens[nl] = out
         plot_salinity_field(out["X"], out["Y"], out["env"][0],
-            f"Maximum seabed salinity - {nl}-layer model (full flow, neap)",
+            f"Maximum seabed salinity - {nl}-layer model (full flow, neap, saturated cavern brine)",
             f"C_layersens_{nl}.png", sec, ox, mz=mz)
     RESULTS["layer_sensitivity"] = {nl: float(sens[nl]["env"][0].max()) for nl in sens}
 
@@ -680,7 +688,7 @@ def part_C_medium(hydro_all):
         hpanels.append({"S": out9n["env"][k], "X": X, "Y": Y, "grid": g,
                         "label": f"{hgt:.0f} m above bed"})
     plot_salinity_panels(hpanels,
-        "Maximum salinity vs height above the seabed - neap, full flow "
+        "Maximum salinity vs height above the seabed - neap, full flow, saturated cavern brine "
         "(dense plume is bottom-trapped and decays upward)",
         "C_env_heights_panel.png", sec, ox, mz=mz, zoom_box=MZOOM, ncols=2)
     # snapshots: salinity + current vectors (bottom layer)
@@ -688,12 +696,12 @@ def part_C_medium(hydro_all):
     for name, ph in C.SNAPSHOT_PHASES.items():
         snp = out9n["snapshots"][round(ph, 3)]
         plot_salinity_field(X, Y, snp["S"][0],
-            f"Seabed salinity & current vectors at {name.replace('_',' ')} - neap",
+            f"Seabed salinity & current vectors at {name.replace('_',' ')} - neap (saturated cavern brine)",
             f"C_snap_neap_{name}.png", sec, ox, mz=mz,
             vectors=(snp["u"], snp["v"]), phase=snp.get("phase", ph),
             zoom_box=MZOOM)
         vertical_profile_plot(out9n, ph,
-            f"Vertical salinity profile at {name.replace('_',' ')} - neap",
+            f"Vertical salinity profile at {name.replace('_',' ')} - neap (saturated cavern brine)",
             f"C_vprof_neap_{name}.png", sec)
 
     # --- spring run with snapshots ------------------------------------------
@@ -702,7 +710,7 @@ def part_C_medium(hydro_all):
     for name, ph in C.SNAPSHOT_PHASES.items():
         snp = out9s["snapshots"][round(ph, 3)]
         plot_salinity_field(out9s["X"], out9s["Y"], snp["S"][0],
-            f"Seabed salinity & current vectors at {name.replace('_',' ')} - spring",
+            f"Seabed salinity & current vectors at {name.replace('_',' ')} - spring (saturated cavern brine)",
             f"C_snap_spring_{name}.png", sec, ox, mz=mz,
             vectors=(snp["u"], snp["v"]), phase=snp.get("phase", ph),
             zoom_box=MZOOM)
@@ -710,7 +718,7 @@ def part_C_medium(hydro_all):
     # --- spring-neap maximum envelope ---------------------------------------
     env_sn = np.maximum(out9n["env"][0], out9s["env"][0])
     plot_salinity_field(X, Y, env_sn,
-        "Maximum seabed salinity over a full spring-neap cycle (full flow)",
+        "Maximum seabed salinity over a full spring-neap cycle (full flow, saturated cavern brine)",
         "C_env_springneap.png", sec, ox, mz=mz)
 
     RESULTS["medium"] = dict(env_bed_neap=out9n["env"][0], env_bed_spring=out9s["env"][0],
@@ -740,7 +748,8 @@ def part_D_far(hydro_all):
         out = run_transport_case("far", far_n, 4, BRINE_RO, sc, "spring_neap", "neap")
         far_runs[sc["id"]] = out
         fpanels.append({"S": out["env"][0], "X": out["X"], "Y": out["Y"], "grid": out["grid"],
-                        "label": f"{sc['id']}: {sc['flow_m3hr']} m3/hr ({sc['n_ports']} port)"})
+                        "label": f"{sc['id']}: {sc['flow_m3hr']} m3/hr "
+                                 f"({sc['n_ports']} port{'' if sc['n_ports'] == 1 else 's'})"})
     # ONE 3-panel scenario comparison (avoids 3 near-identical standalone maps)
     plot_salinity_panels(fpanels,
         "Far-field maximum seabed salinity by discharge scenario - neap tide (RO brine)",
@@ -755,7 +764,7 @@ def part_D_far(hydro_all):
     # spring-neap envelope
     env_sn = np.maximum(far_runs["S3"]["env"][0], out_s["env"][0])
     plot_salinity_field(out_s["X"], out_s["Y"], env_sn,
-        "Far-field maximum seabed salinity - spring-neap envelope (full flow)",
+        "Far-field maximum seabed salinity - spring-neap envelope (full flow, RO brine)",
         "D_far_springneap.png", sec, ox, mz=mz, levels=far_levels,
         zoom_box=([ox[0]-1150, ox[0]+2600], [ox[1]-2200, ox[1]+2200]))
     # cavern worst case
@@ -864,7 +873,7 @@ def part_E_design(med):
     ax.legend(loc="upper right", fontsize=8); ax.set_aspect("equal")
     ax.set_xlim(ox[0]-350, ox[0]+350); ax.set_ylim(ox[1]-300, ox[1]+300)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/E_optimised_layout.png"),
-               "Recommended optimised diffuser/intake layout (inclined two-port diffuser).", sec)
+               f"Recommended optimised diffuser/intake layout (inclined {npg}-port diffuser).", sec)
 
 
 # ===========================================================================
@@ -903,8 +912,15 @@ def part_F_tables():
 
     # impurities / EQS compliance
     Sa = C.AMBIENT["background_salinity_psu"]
-    # use a representative cavern dilution
-    dil = float(RESULTS["nearfield"].query("brine=='Saturated cavern brine' and tide=='neap' and scenario=='S3'")["dilution"].iloc[0])
+    # Use the MINIMUM near-field dilution over every brine, scenario and tidal
+    # state.  Any other choice (a "representative" or mean value, still less the
+    # study maximum) would understate the receiving-water concentration, since
+    # concentration scales as 1/dilution.  This is the worst case the discharge
+    # can present to the EQS.
+    dil = float(RESULTS["nearfield"]["dilution"].min())
+    _dil_src = RESULTS["nearfield"].loc[RESULTS["nearfield"]["dilution"].idxmin()]
+    print(f"    impurity dilution = x{dil:.1f} (minimum: {_dil_src['brine']}, "
+          f"{_dil_src['scenario']}, {_dil_src['tide']})")
     rows = []
     for param, (brine_c, sw_c, eqs) in C.BRINE["impurities_ugL"].items():
         comp = metrics.eqs_compliance(brine_c, dil, eqs, background_ugL=sw_c)
@@ -1006,9 +1022,11 @@ def _recirc_run(outfall_dist_m, current_label, speed, bearing, capture_ts=False)
                               sink_coef=C.MODEL["gravity_current_coef"])
     amb = nf.Ambient(salinity=Sa, temperature=C.AMBIENT["background_temperature_C"],
                      depth=C.AMBIENT["outfall_depth_m"], current=max(speed, 0.05))
-    d = nf.Discharge(flow_m3hr=C.SCENARIOS[-1]["flow_m3hr"] / 4, diameter_m=C.DIFFUSER["port_diameter_m"],
+    n_ports = C.SCENARIOS[-1]["n_ports"]
+    d = nf.Discharge(flow_m3hr=C.SCENARIOS[-1]["flow_m3hr"] / n_ports,
+                     diameter_m=C.DIFFUSER["port_diameter_m"],
                      salinity=S0, temperature=T0, z0=C.DIFFUSER["port_height_m"], theta_deg=C.DIFFUSER["port_angle_deg"])
-    rnf = nf.simulate(d, amb, n_ports=4, port_spacing=C.DIFFUSER["port_spacing_m"])
+    rnf = nf.simulate(d, amb, n_ports=n_ports, port_spacing=C.DIFFUSER["port_spacing_m"])
     model.add_line_source([(ox, oy)], C.SCENARIOS[-1]["flow_m3hr"], S0, Sa,
                           footprint_m=max(g.dx * 1.2, 60), impact_salinity=rnf.impact_salinity)
     jin, iin = nearest_cell(g, (intake_x, oy)); jou, iou = nearest_cell(g, (ox, oy))
@@ -1051,25 +1069,30 @@ def part_H_recirculation():
                 "Salinity rise above ambient at the intake vs outfall distance from shore, by current condition (0.1 ppt recirculation criterion).", sec)
     RESULTS["recirc"] = dfr
 
-    # Table 1A / 1B style separate CSVs
+    # Table 1A / 1B / 1C style separate CSVs
     for cl, tag in [("southward 0.25 m/s", "H_table1A_southward"),
-                    ("weak southward 0.05 m/s", "H_table1B_weak")]:
+                    ("weak southward 0.05 m/s", "H_table1B_weak"),
+                    ("northward 0.25 m/s", "H_table1C_northward")]:
         sub = dfr[dfr.current == cl][["outfall_dist_m", "rise_min_ppt", "rise_max_ppt", "rise_avg_ppt"]]
         H.write_csv(sub, f"{tag}.csv",
                     f"Rise in salinity at intake above ambient - {cl}.", sec)
 
-    # Fig 6: rise at intake vs outfall distance
-    fig, ax = viz.new_ax((7.6, 5), "Salinity rise at intake vs outfall distance from shore",
-                         "Outfall distance from shore (m)", "Salinity rise at intake (ppt)")
+    # Fig 6: rise at intake vs outfall distance.  Plot the MAXIMUM cell rise in the
+    # intake window, not the window mean: the 0.1 ppt criterion is an upper bound, so
+    # the peak cell is the quantity that has to clear it.  This also keeps the figure
+    # on the same basis as the per-current tables (1A/1B/1C), which report the maximum.
+    fig, ax = viz.new_ax((7.6, 5), "Maximum salinity rise at intake vs outfall distance from shore",
+                         "Outfall distance from shore (m)", "Maximum salinity rise at intake (ppt)")
     cmap = {"northward 0.25 m/s": "#2a6f97", "southward 0.25 m/s": "#3a9278",
             "weak southward 0.05 m/s": "#d1495b"}
     for cl, sp, brg in currents:
         sub = dfr[dfr.current == cl]
-        ax.plot(sub.outfall_dist_m, sub.rise_avg_ppt, "-o", color=cmap[cl], lw=2.2, label=cl)
+        ax.plot(sub.outfall_dist_m, sub.rise_max_ppt, "-o", color=cmap[cl], lw=2.2, label=cl)
     ax.axhline(0.1, color="#7b5ea7", ls="--", lw=1.8, label="0.1 ppt recirculation limit")
     ax.legend(fontsize=8)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/H_intake_rise_curve.png"),
-               "Variation of salinity rise at the intake with outfall distance from shore (recirculation criterion).", sec)
+               "Variation of the maximum salinity rise at the intake with outfall distance from shore "
+               "(recirculation criterion).", sec)
 
     # Fig 4A/4B: salinity-RISE contours for near vs far outfall (weak current)
     rise_levels = [0.05, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4]

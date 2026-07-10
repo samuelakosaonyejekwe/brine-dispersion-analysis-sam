@@ -4,5 +4,7 @@
   "jet_spread_dbdz": 0.114,
   "plume_dilution_exponent": 1.596,
   "dense_jet_zt_over_DFr_mean": 1.534,
-  "dense_jet_Sr_over_Fr_mean": 0.891
+  "dense_jet_xr_over_DFr_mean": 2.572,
+  "dense_jet_Sr_bulk_over_Fr_mean": 0.995,
+  "dense_jet_Sr_min_over_Fr_mean": 0.587
 }
