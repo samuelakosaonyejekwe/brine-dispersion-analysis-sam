@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: "UBDS — Universal Brine Dispersion Solver"
+message: "If you use this software or the accompanying case study, please cite it as below."
+type: software
+authors:
+  - family-names: Onyejekwe
+    given-names: Akosa Samuel
+    email: samuelonyejekwe852@gmail.com
+    affiliation: "Independent Researcher"
+repository-code: "https://github.com/samuelakosaonyejekwe/brine-dispersion-analysis-sam"
+abstract: >-
+  UBDS is an open, physics-based solver that unifies the near-, medium- and
+  far-field dispersion of brine and other buoyant or negatively buoyant
+  effluents in a single dynamically-coupled, mass-conserving framework: a
+  sign-agnostic Lagrangian integral jet/plume model, a 2-D depth-averaged
+  shallow-water hydrodynamic engine, and a quasi-3D sigma-layer
+  advection-dispersion engine with a dense-water gravity-current closure. The
+  repository includes the Bahia Azul desalination brine-outfall case study,
+  built entirely on synthetic but physically credible site data.
+keywords:
+  - brine dispersion
+  - desalination
+  - outfall
+  - hydrodynamics
+  - plume model
+  - shallow water equations
+  - environmental modelling
+license: MIT
+version: 1.0.0
+date-released: "2026-07-10"

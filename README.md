@@ -194,6 +194,17 @@ validation. The table above is the independent evidence.
 
 > Onyejekwe, A.S. (2026). *UBDS — Universal Brine Dispersion Solver, v1.0.0, and the Bahía Azul brine-outfall case study.*
 
+Machine-readable metadata is in [`CITATION.cff`](CITATION.cff).
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE) — use, modify and redistribute it freely,
+keeping the copyright notice. The software is provided without warranty; it is a
+research code, and the Bahía Azul case study runs on synthetic inputs, so it is not a
+substitute for a site-specific assessment against real survey data.
+
 ---
 
 ## Status & contact
