@@ -1,79 +1,170 @@
-# UBDS — Universal Brine Dispersion Solver & Bahía Azul Case Study
+# UBDS — Universal Brine Dispersion Solver
 
-A novel, open, physics-based solver for the near-, medium- and far-field
-dispersion of brine (and any buoyant/neutral effluent) in coastal waters, with
-a complete worked case study and validation suite.
+**A unified, open, physics-based solver for the near-, medium- and far-field dispersion of brine and other buoyant or negatively-buoyant effluents in coastal and marine waters — with a complete worked case study.**
 
-**Author:** Akosa Samuel Onyejekwe (Independent Researcher)
+**Author:** Akosa Samuel Onyejekwe — Independent Researcher
+**Version:** UBDS v1.0.0 · Language: Python
 
-## What it does
-UBDS unifies, in a single dynamically-coupled, mass-conserving framework:
-- a **near-field** Eulerian integral jet/plume model (sign-agnostic buoyancy —
-  dense brine, buoyant thermal, or neutral),
-- a **2-D depth-averaged shallow-water** hydrodynamic engine, and
-- a **quasi-3D sigma-layer advection–dispersion** transport engine with a novel
-  **dense gravity-current closure** that reproduces bottom-trapping of brine.
+---
 
-## Project layout
+## Overview
+
+Brine discharges from desalination plants and solution-mined storage caverns are denser than seawater: they sink toward the seabed, where elevated salinity can stress benthic ecosystems. Assessing their impact requires resolving two very different regimes — the small-scale turbulent jet/plume mixing in the immediate vicinity of the diffuser (the **near field**), and the tidally-driven transport and dilution across the wider water body (the **medium and far field**). Conventionally these are handled by two separate, often proprietary, codes with a manual hand-off between them.
+
+**UBDS unifies both regimes in a single, open, dynamically-coupled, mass-conserving framework.** The same solver describes negatively buoyant (brine), positively buoyant (thermal/freshwater) and neutral (tracer) discharges without special-casing, and it carries the near-field result directly into the far-field transport engine, removing the manual transfer and the mass-conservation errors it introduces.
+
+This repository contains the solver package (`ubds/`), a complete worked case study as a report (`case.pdf`), and the figures and animations that the study produced (`outputs/`).
+
+---
+
+## Why UBDS
+
+- **Unified near-to-far field coupling** in one open framework — no manual hand-off, no inter-code mass-conservation error.
+- **Sign-agnostic buoyancy** — one set of governing equations for dense, buoyant and neutral discharges. A dense element naturally decelerates, arcs over and sinks; a light one rises — no special-casing.
+- **Dense-water gravity-current closure** in the sigma-layer transport engine, reproducing the strong seabed trapping of brine that 2-D depth-averaged models miss and that full 3-D models capture only at large computational cost.
+- **Built-in regulatory metrics** — initial dilution, mixing-zone radius, salinity-increment impact areas, diffusion distances and Environmental Quality Standard (EQS) compliance, computed directly from the solution.
+- **Open and reproducible** — documented, physically-standard entrainment and turbulence closures, with all inputs and outputs exposed as plain data.
+
+---
+
+## Scientific approach
+
+**Near field — `UBDS-NF`.** A sign-agnostic Lagrangian "plume-element" integral model in the spirit of JETLAG/VISJET and the US-EPA UM3 routine, written from scratch and generalised across buoyancy sign. The plume is discretised into a chain of cylindrical elements that grow by the *combined entrainment hypothesis* (shear entrainment ∝ velocity excess, plus forced entrainment ∝ ambient cross-flow). Buoyancy enters as a vertical body force `g(ρ_a − ρ_e)/ρ_e`. The model returns the full 3-D trajectory, the dilution-versus-distance curve, and the salinity/density at seabed impact (or terminal rise height).
+
+**Hydrodynamics — `UBDS-HD`.** A 2-D depth-averaged shallow-water engine (mass and momentum with Manning friction, Coriolis and turbulent mixing) driven by tidal forcing, producing the time-varying current field.
+
+**Far field — `UBDS-FF`.** A quasi-3D sigma-layer advection–dispersion engine driven by the calibrated currents, augmented with a buoyancy-scaled inter-layer **gravity-current flux** that reproduces bottom-trapping of dense brine.
+
+Governing equations (top-hat near field; depth-averaged far field):
+
 ```
-README.md                 This file
-case.docx                 The case-study report (collates everything)
+Near field (steady flux-integral form, along jet arclength s):
+  d(ρ_e Q)/ds   = ρ_a E
+  d(ρ_e Q V)/ds = ρ_a E V_a + (0, 0, (ρ_a − ρ_e) g π b²)
+  d(ρ_e Q S)/ds = ρ_a E S_a
+  E = 2π b α_s |V − V_a| + 2 b α_f |V_a,⊥|
 
-case_inputs.py            All case-study input data (site-specific)
-case_geometry.py          Bathymetry / mesh builder (Bahia Azul embayment)
-run_case_study.py         Master runner (Parts A-H) -> figures, CSVs
-run_helpers.py            Artifact registry + field interpolation
-render_pdf_refs.py        Renders reference figures from the 3 source PDFs
-make_animations.py        Animated GIF + filmstrip outputs
-build_docx.py             Assembles case.docx
+Far field (shallow-water hydrodynamics + sigma-layer transport):
+  ∂η/∂t + ∂(Hu)/∂x + ∂(Hv)/∂y = 0
+  ∂(hs)/∂t + ∂(uhs)/∂x + ∂(vhs)/∂y = ∂/∂x(hD_x ∂s/∂x) + ∂/∂y(hD_y ∂s/∂y) + sources
+```
 
-ubds/                     The solver package
-  eos.py                  Seawater + hypersaline-brine equation of state
-  nearfield.py            Near-field integral jet/plume model
-  hydro.py                2-D shallow-water hydrodynamic engine
-  transport.py            Sigma-layer transport + gravity-current closure
-  diffuser.py             Multi-port diffuser geometry
-  metrics.py              Dilution / mixing-zone / EQS-compliance metrics
-  viz.py                  Plotting style (no pure black)
+---
 
-validation/
-  validate.py             Validation against canonical laws & published data
-  calibrate_nearfield.py  Near-field calibration record
-  SOURCES.md              All external data sources
-  validation_summary.json Validation results
+## Repository structure
 
-reference_pdfs/           The three guidance studies (PDF + extracted text)
+```
+README.md                  This file
+case.pdf                   The full Bahía Azul case-study report (collates everything)
+
+ubds/                      The solver package
+  __init__.py              Package API and version
+  eos.py                   Equation of state — seawater + hypersaline-brine extension
+  nearfield.py             Sign-agnostic Lagrangian integral jet/plume model (UBDS-NF)
+  diffuser.py              Multi-port diffuser geometry and plume-merging logic
+  hydro.py                 2-D depth-averaged shallow-water engine (UBDS-HD)
+  transport.py             Sigma-layer advection–dispersion + gravity-current closure (UBDS-FF)
+  metrics.py               Dilution, mixing-zone, impact-area and EQS-compliance metrics
+  viz.py                   Publication plotting helpers (colour-blind safe; never pure black)
 
 outputs/
-  figures/                All charts, maps, contours, curves, vectors, profiles
-  csv/                    Every dataset behind the figures
-  animations/             GIF animations + filmstrip
-  pdf_reference_figures/  Reference figures rendered from the 3 source studies
-  cache/                  Cached hydrodynamic fields (.npz)
-  logs/                   Run logs
-  _backup_v1/             Safety backup of an earlier output set
-  manifest.json           Registry of all artifacts
-  results.pkl             Numeric results for the report builder
+  figures/                 Charts, maps, contours, dilution curves, current vectors, profiles
+  animations/              GIF animations + filmstrip of the dispersion over a tidal cycle
 ```
 
-## How to run (in order)
-```bash
-python3 run_case_study.py        # hydrodynamics + near/far-field + all outputs
-python3 render_pdf_refs.py       # reference figures from the source studies
-python3 -m validation.validate   # validation suite
-python3 make_animations.py       # animations
-python3 build_docx.py            # assemble case.docx
+---
+
+## The solver (`ubds`)
+
+The package can be imported and used on its own:
+
+```python
+from ubds import eos, nearfield, hydro, transport, diffuser, metrics, viz
 ```
 
-## Outputs
-Bathymetry/mesh, ADCP current & tidal-level calibration, near-field trajectories
-and dilution curves, sigma-layer sensitivity, medium- and far-field salinity
-envelopes, tidal-phase snapshots with current vectors, vertical profiles,
-diffuser design optimisation, intake-recirculation siting study, trace-impurity
-EQS compliance, validation plots, animations — all as figures + CSVs, collated
-into `case.docx`.
+**Equation of state** — seawater density with a hypersaline-brine extension, and the reduced gravity (buoyancy) that drives the plume:
 
-## Validation (see validation/SOURCES.md)
-Canonical round-jet (Fischer et al. 1979) and plume (Morton–Taylor–Turner 1956)
-laws; inclined dense-jet data (Papakonstantis et al. 2011); EOS-80 / CRC
-densities; synthetic ADCP current dataset.
+```python
+from ubds import eos
+
+rho_ambient = eos.density(34.2, 17.0)   # ambient seawater density (kg/m3)
+rho_brine   = eos.density(68.0, 19.0)   # RO concentrate density   (kg/m3)
+
+# Reduced gravity of the discharge relative to ambient (g' > 0 => sinks)
+g_prime = eos.buoyancy_g_prime(68.0, 19.0, 34.2, 17.0)
+```
+
+**Near-field initial dilution** — define the ambient and the port discharge, then simulate the jet/plume:
+
+```python
+from ubds import nearfield
+
+amb = nearfield.Ambient(salinity=34.2, temperature=17.0, current=0.15, depth=27.0)
+disch = nearfield.Discharge(
+    flow_m3hr=250.0, diameter_m=0.1524, salinity=68.0, temperature=19.0,
+    z0=0.75, theta_deg=60.0,            # 60-deg inclined dense jet
+)
+
+result = nearfield.simulate(disch, amb)   # full 3-D trajectory + dilution curve
+```
+
+The `result` carries the plume trajectory, the dilution-versus-distance curve, and the salinity/density at seabed impact. The `hydro` and `transport` modules then provide the depth-averaged current field and the sigma-layer far-field dispersion, and `metrics` turns any salinity field into regulatory quantities (mixing-zone radius, salinity-increment areas, diffusion distances, EQS compliance, and model-skill scores).
+
+---
+
+## The case study (`case.pdf`)
+
+`case.pdf` is the complete **Bahía Azul** worked example produced end-to-end with UBDS — a mid-size seawater reverse-osmosis desalination plant discharging hypersaline concentrate through an offshore inclined multiport diffuser, with provision for later receipt of saturated brine from an adjacent salt-cavern energy-storage scheme.
+
+The report covers:
+
+- bathymetry and nested mesh construction for the embayment;
+- ADCP current and tidal-level calibration of the hydrodynamic engine;
+- near-field initial-dilution trajectories and dilution curves for both brine types and all flow scenarios;
+- sigma-layer resolution sensitivity;
+- medium- and far-field salinity-increment envelopes;
+- tidal-phase snapshots with current vectors and vertical profiles through the diffuser;
+- diffuser design optimisation (port angle and layout);
+- the outfall-siting / intake-recirculation study;
+- trace-impurity EQS compliance; and
+- the validation suite.
+
+All of the figures and animations behind the report are provided in `outputs/`.
+
+---
+
+## Validation
+
+UBDS was checked against canonical analytical laws and published experimental data. Representative results:
+
+| Benchmark | UBDS | Reference | Source |
+|---|---|---|---|
+| Seawater/brine density | max error **0.40 %** | EOS-80 / CRC densities | UNESCO (1981); CRC Handbook |
+| Momentum jet — dilution slope | **0.228** per z/D | 0.25–0.32 | Fischer et al. (1979) |
+| Momentum jet — spread rate | **0.114** db/dz | ≈ 0.11 | Fischer et al. (1979) |
+| Pure plume — volume-flux exponent | **1.60** | 5/3 ≈ 1.67 | Morton, Taylor & Turner (1956) |
+| Inclined 60° dense jet | terminal-rise & dilution scaling | published ranges | Papakonstantis et al. (2011) |
+
+**Selected references / data sources**
+
+- Fischer, H.B., List, E.J., Koh, R.C.Y., Imberger, J. & Brooks, N.H. (1979). *Mixing in Inland and Coastal Waters.* Academic Press.
+- Morton, B.R., Taylor, G.I. & Turner, J.S. (1956). Turbulent gravitational convection from maintained and instantaneous sources. *Proc. R. Soc. Lond. A* 234, 1–23.
+- Papakonstantis, I.G., Christodoulou, G.C. & Papanicolaou, P.N. (2011). Inclined negatively buoyant jets. *J. Hydraulic Research* 49(1), 3–22.
+- Roberts, P.J.W., Ferrier, A. & Daviero, G. (1997). Mixing in inclined dense jets. *J. Hydraulic Engineering* 123(8), 693–699.
+- Lee, J.H.W. & Chu, V.H. (2003). *Turbulent Jets and Plumes — A Lagrangian Approach.* Kluwer.
+- Jirka, G.H. (2004). Integral model for turbulent buoyant jets in unbounded stratified flows. *Environmental Fluid Mechanics* 4, 1–56.
+- Millero, F.J. & Poisson, A. (1981). International one-atmosphere equation of state of seawater. *Deep-Sea Research* 28A, 625–629; UNESCO (1981) Tech. Papers Mar. Sci. 36.
+
+> All site-specific inputs (bathymetry, tides, ADCP currents, CTD profiles, brine chemistry) were synthesised by the author for this case study; they are engineering-credible and are not drawn from any real consent.
+
+---
+
+## Citation
+
+> Onyejekwe, A.S. (2026). *UBDS — Universal Brine Dispersion Solver, v1.0.0, and the Bahía Azul brine-outfall case study.*
+
+---
+
+## Status & contact
+
+UBDS is an independent research project by **Akosa Samuel Onyejekwe**. Questions, suggestions and collaboration are welcome via the repository's issues.
