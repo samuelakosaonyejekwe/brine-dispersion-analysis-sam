@@ -353,7 +353,7 @@ def part_A_nearfield():
             _pl = "port" if sc["n_ports"] == 1 else "ports"
             fig.suptitle(f"Near-field behaviour - {bn}  |  {sc['flow_m3hr']} m3/hr, "
                          f"{sc['n_ports']} {_pl} = {per_port:.0f} m3/hr/port{_same}",
-                         color=viz.INK, fontweight="bold")
+                         color=viz.INK, fontweight="bold", fontsize=16)
             # LEFT: trajectory in the water column, line coloured by salinity
             from matplotlib.collections import LineCollection
             smax = max(traj_store[(bn, sc["id"], ts["label"])].salinity.max()
@@ -375,15 +375,17 @@ def part_A_nearfield():
                 # labels pinned at the impact point collide.  Stack them vertically.
                 axL.annotate(f"{ts['label']} ({ts['velocity']} m/s)",
                              (xx[-1], r.z[-1]), xytext=(6, 6 + 12 * _ti),
-                             textcoords="offset points", fontsize=8,
+                             textcoords="offset points", fontsize=11, fontweight="bold",
                              color=tide_colors[ts["label"]])
             axL.axhline(0, color="#8a6d3b", lw=2.0)
             axL.axhline(C.DIFFUSER["port_height_m"], color="#7b8fa3", ls=":", lw=1)
-            axL.set_xlabel("Horizontal distance from port (m)")
-            axL.set_ylabel("Height above seabed (m)")
-            axL.set_title("Plume trajectory (line colour = salinity)")
+            axL.set_xlabel("Horizontal distance from port (m)", fontsize=13)
+            axL.set_ylabel("Height above seabed (m)", fontsize=13)
+            axL.set_title("Plume trajectory (line colour = salinity)", fontsize=14)
+            axL.tick_params(labelsize=12)
             axL.set_ylim(bottom=-0.4); axL.autoscale_view()
-            cb = fig.colorbar(lc, ax=axL, shrink=0.8); cb.set_label("Salinity (psu)")
+            cb = fig.colorbar(lc, ax=axL, shrink=0.8)
+            cb.set_label("Salinity (psu)", fontsize=12); cb.ax.tick_params(labelsize=11)
             axL.grid(True, color=viz.GRIDC, alpha=0.5)
             # RIGHT: dilution (solid) and salinity (dashed) vs distance
             axR2 = axR.twinx()
@@ -392,11 +394,13 @@ def part_A_nearfield():
                 axR.plot(r.s, r.dilution, color=tide_colors[ts["label"]], lw=2.4,
                          label=f"{ts['label']}: x{r.impact_dilution:.0f}, {r.impact_salinity:.1f} psu")
                 axR2.plot(r.s, r.salinity, color=tide_colors[ts["label"]], lw=1.4, ls="--", alpha=0.7)
-            axR.set_xlabel("Distance along plume centreline (m)")
-            axR.set_ylabel("Dilution S/S0  (solid)")
-            axR2.set_ylabel("Centreline salinity, psu  (dashed)", color="#5b4a2f")
-            axR.set_title("Dilution & salinity vs distance")
-            axR.legend(title="Tidal velocity (seabed values)", fontsize=8)
+            axR.set_xlabel("Distance along plume centreline (m)", fontsize=13)
+            axR.set_ylabel("Dilution S/S0  (solid)", fontsize=13)
+            axR2.set_ylabel("Centreline salinity, psu  (dashed)", color="#5b4a2f", fontsize=13)
+            axR.set_title("Dilution & salinity vs distance", fontsize=14)
+            axR.tick_params(labelsize=12); axR2.tick_params(labelsize=12)
+            leg = axR.legend(title="Tidal velocity (seabed values)", fontsize=11)
+            leg.get_title().set_fontsize(11)
             axR.grid(True, color=viz.GRIDC, alpha=0.5)
             H.register("figure", viz.save(fig, f"{H.FIG_DIR}/A_nearfield_{bn[:2]}_{sc['id']}.png"),
                        f"Near-field trajectory, dilution and salinity - {bn}, "
@@ -405,18 +409,19 @@ def part_A_nearfield():
     # ---- master comparison across scenarios (one figure) -------------------
     fig, ax = viz.new_ax((8, 5.2), "Seabed dilution by scenario and tidal state (RO concentrate)",
                          "Tidal velocity (m/s)", "Seabed dilution (S/S0)")
-    cols = {"S1": "#2a6f97", "S2": "#3a9278", "S3": "#d1495b"}
-    # S1 and S3 carry the same 300 m3/hr per port, so their curves lie on top of one
-    # another.  Drawing S3 first, wide and translucent, keeps S1 visible instead of
-    # leaving a legend entry for a line the reader cannot find.
-    for sid in ["S3", "S1", "S2"]:
+    # Near-field dilution is set by the flow through ONE port, so S3 (1200 m3/hr through
+    # four ports) reproduces S1 (300 through one) exactly.  Plotting both stacks two
+    # identical curves and makes neither readable; draw the distinct cases and state the
+    # equivalence instead.
+    cols = {"S1": "#12355b", "S2": "#1b9aaa"}
+    for sid in ["S1", "S2"]:
         sc = next(o for o in C.SCENARIOS if o["id"] == sid)
         sub = dfres[(dfres.brine == "RO concentrate") & (dfres.scenario == sid)].sort_values("velocity_ms")
-        lw, ms, alpha = (7.0, 13, 0.35) if sid == "S3" else (2.4, 8, 1.0)
-        ax.plot(sub.velocity_ms, sub.dilution, "-o", color=cols[sid], lw=lw, ms=ms, alpha=alpha,
-                label=f"{sc['id']} ({sc['flow_m3hr']} m3/hr, {sc['n_ports']}p)")
+        ax.plot(sub.velocity_ms, sub.dilution, "-o", color=cols[sid], lw=2.4, ms=8,
+                label=f"{sc['id']} - {sc['flow_m3hr']} m3/hr, {sc['n_ports']} port"
+                      f"{'' if sc['n_ports'] == 1 else 's'}")
     ax.legend(title="Scenario", loc="upper left")
-    ax.annotate("S1 and S3 coincide: both discharge 300 m3/hr per port",
+    ax.annotate("S3 (1200 m3/hr, 4 ports) reproduces S1 exactly: both discharge 300 m3/hr per port",
                 xy=(0.98, 0.02), xycoords="axes fraction", fontsize=8,
                 ha="right", va="bottom", color=viz.INK)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/A_scenario_comparison.png"),
@@ -648,21 +653,62 @@ BRINE_RO = (C.BRINE["ro_salinity_psu"],
 PHASE_NAME = {v: k for k, v in C.SNAPSHOT_PHASES.items()}
 
 
-def vertical_profile_plot(out, phase_key, title, fname, sec):
-    """Vertical salinity profile through the diffuser column at a tidal phase."""
+def profile_at(out, phase_key):
+    """Salinity and layer mid-heights through the diffuser column at one phase."""
     g = out["grid"]; layers = out["layers"]
     j, i = nearest_cell(g, C.MEDIUM_FIELD["outfall_xy"])
     S = out["snapshots"][round(phase_key, 3)]["S"]
     depth = float(g.h[j, i])
     edges = np.concatenate([[0], np.cumsum(layers.fractions)]) * depth
-    mids = 0.5 * (edges[:-1] + edges[1:])
-    sal = S[:, j, i]
-    fig, ax = viz.new_ax((5.2, 6.2), title, "Salinity (psu)", "Height above seabed (m)")
-    ax.plot(sal, mids, "-o", color="#2a6f97", lw=2.2)
-    ax.axvline(C.THRESHOLDS["salinity_threshold_psu"], color="#3a9278", ls="--",
+    return S[:, j, i], 0.5 * (edges[:-1] + edges[1:])
+
+
+# Okabe-Ito: distinguishable in print, on a projector and to colour-blind viewers.
+PHASE_COLOURS = {"high_water": "#0072B2", "mid_ebb": "#009E73",
+                 "low_water": "#D55E00", "mid_flood": "#CC79A7"}
+
+
+def vertical_profiles_plot(out, title, fname, sec):
+    """One profile plus the spread across tidal phases.
+
+    Drawn as four separate panels these profiles were indistinguishable: each was
+    autoscaled to its own salinity range, and the bed cell at the diffuser column is
+    source-controlled, so every phase reads the same seabed value.  Overlaying four
+    near-coincident curves only traded four identical panels for one muddled figure.
+    A single mean profile with a min-max band across the phases shows both the shape
+    and how little the tide changes it.
+    """
+    names = list(C.SNAPSHOT_PHASES)
+    sals = np.array([profile_at(out, C.SNAPSHOT_PHASES[n])[0] for n in names])
+    mids = profile_at(out, C.SNAPSHOT_PHASES[names[0]])[1]
+    mean, lo, hi = sals.mean(axis=0), sals.min(axis=0), sals.max(axis=0)
+    bed = sals[:, 0]
+
+    fig, ax = viz.new_ax((7.6, 4.0), title, "Salinity (psu)", "Height above seabed (m)")
+    ax.fill_betweenx(mids, lo, hi, color="#0072B2", alpha=0.22, lw=0,
+                     label="spread across the four phases")
+    ax.plot(mean, mids, "-o", lw=3.0, ms=8, color="#0072B2", mec="white", mew=1.0,
+            label="mean profile")
+    ax.axvline(C.THRESHOLDS["salinity_threshold_psu"], color="#000000", ls="--", lw=2.0,
                label=f"{C.THRESHOLDS['salinity_threshold_psu']} psu threshold")
-    ax.axvline(C.AMBIENT["background_salinity_psu"], color="#7b5ea7", ls=":", label="Background")
-    ax.legend(fontsize=8)
+    ax.axvline(C.AMBIENT["background_salinity_psu"], color="#555555", ls=":", lw=2.0,
+               label=f"{C.AMBIENT['background_salinity_psu']} psu background")
+    # The plume is bottom-trapped: above ~5 m the column sits at the background salinity,
+    # so a 0-14 m axis squeezes the entire signal into the bottom sliver.
+    ax.set_ylim(0, 6)
+    ax.set_title("Vertical salinity profile at the diffuser column\n"
+                 "(neap, saturated cavern brine)",
+                 fontsize=14, color=viz.INK, fontweight="bold")
+    ax.set_xlabel("Salinity (psu)", fontsize=13)
+    ax.set_ylabel("Height above seabed (m)", fontsize=13)
+    ax.tick_params(labelsize=12)
+    ax.legend(fontsize=10, loc="upper right", framealpha=1.0, borderpad=0.6)
+    _spread = float(np.abs(hi - lo).max())
+    ax.annotate(f"Seabed salinity is {bed.min():.2f} psu at every phase; the widest gap between "
+                f"phases anywhere in the column is {_spread:.2f} psu.",
+                xy=(0.5, -0.30), xycoords="axes fraction", ha="center", va="top",
+                fontsize=11, color=viz.INK)
+    ax.grid(True, color=viz.GRIDC, alpha=0.6)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/{fname}"), title, sec)
 
 
@@ -742,9 +788,10 @@ def part_C_medium(hydro_all):
             f"C_snap_neap_{name}.png", sec, ox, mz=mz,
             vectors=(snp["u"], snp["v"]), phase=snp.get("phase", ph),
             zoom_box=MZOOM)
-        vertical_profile_plot(out9n, ph,
-            f"Vertical salinity profile at {name.replace('_',' ')} - neap (saturated cavern brine)",
-            f"C_vprof_neap_{name}.png", sec)
+
+    vertical_profiles_plot(out9n,
+        "Vertical salinity profiles at the diffuser column - all tidal phases "
+        "(neap, saturated cavern brine)", "C_vprof_neap.png", sec)
 
     # --- spring run with snapshots ------------------------------------------
     out9s = run_transport_case("medium", med_s, 9, BRINE_CAVERN, sc3, "spring_neap",
@@ -1024,22 +1071,23 @@ def part_G_csv_plots():
     d = RESULTS["nearfield"]
     fig, ax = viz.new_ax((7.5, 5), "Seabed dilution vs tidal velocity (by brine & scenario)",
                          "Tidal velocity (m/s)", "Seabed dilution (S/S0)")
+    # S3 duplicates S1 exactly (same 300 m3/hr per port), so drawing all six series
+    # stacked two identical curves per brine and left the legend swatches
+    # indistinguishable.  Show the four distinct cases; the note carries S3.
     styles = {"RO concentrate": "-o", "Saturated cavern brine": "--s"}
-    cols = {"S1": "#2a6f97", "S2": "#3a9278", "S3": "#d1495b"}
+    cols = {("RO concentrate", "S1"): "#12355b", ("RO concentrate", "S2"): "#1b9aaa",
+            ("Saturated cavern brine", "S1"): "#c1121f",
+            ("Saturated cavern brine", "S2"): "#f08c00"}
     short = {"RO concentrate": "RO", "Saturated cavern brine": "Cavern"}
-    # S1 and S3 discharge the same 300 m3/hr per port, so their curves coincide
-    # exactly.  Draw S3 with a wider, lighter line underneath so both remain
-    # visible instead of one hiding the other.
-    for bn in d.brine.unique():
-        for sid in ["S3", "S1", "S2"]:
+    for bn in ["RO concentrate", "Saturated cavern brine"]:
+        for sid in ["S1", "S2"]:
             sub = d[(d.brine == bn) & (d.scenario == sid)].sort_values("velocity_ms")
-            lw, alpha = (5.0, 0.35) if sid == "S3" else (2.0, 1.0)
-            ax.plot(sub.velocity_ms, sub.dilution, styles[bn], color=cols[sid],
-                    lw=lw, alpha=alpha, label=f"{short[bn]} {sid}")
+            ax.plot(sub.velocity_ms, sub.dilution, styles[bn], color=cols[(bn, sid)],
+                    lw=2.2, ms=6, label=f"{short[bn]} {sid}")
     # Keep the note clear of the legend: "best" placement puts the legend top-left,
     # which is where the annotation used to be drawn, leaving it unreadable.
     ax.legend(fontsize=8, ncol=2, loc="upper left")
-    ax.annotate("S1 and S3 coincide: both discharge 300 m3/hr per port",
+    ax.annotate("S3 (1200 m3/hr, 4 ports) reproduces S1 exactly: both discharge 300 m3/hr per port",
                 xy=(0.98, 0.02), xycoords="axes fraction", fontsize=8,
                 ha="right", va="bottom", color=viz.INK)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/G_dilution_vs_velocity.png"),
@@ -1049,26 +1097,45 @@ def part_G_csv_plots():
 
     # increment area vs flow
     dft = RESULTS["far_table"]
-    fig, ax = viz.new_ax((7.5, 5), "Salinity-increment influence area vs discharge flow",
-                         "Brine discharge (m3/hr)", "Affected area (km2)")
-    ax.plot(dft.flow_m3hr, dft.area_0p5psu_km2, "-o", color="#2a6f97", label="0.5 psu")
-    ax.plot(dft.flow_m3hr, dft.area_1p0psu_km2, "-s", color="#3a9278", label="1.0 psu")
-    ax.plot(dft.flow_m3hr, dft.area_1p5psu_km2, "-^", color="#d1495b", label="1.5 psu")
-    # Every area is exactly zero, so the three lines lie on the axis and the plot
-    # reads as empty.  Say why on the figure itself: it sits in the data-plot
-    # appendix, far from the section-6 note that explains the zeros.
-    _peak_inc = dft.max_seabed_salinity_psu.max() - C.AMBIENT["background_salinity_psu"]
-    if float(dft[["area_0p5psu_km2", "area_1p0psu_km2", "area_1p5psu_km2"]].max().max()) == 0.0:
-        ax.set_ylim(-0.02, 0.5)
-        ax.annotate(f"All areas are 0.000 km2: on the {C.FAR_FIELD['dx_m']:.0f} m regional grid the\n"
-                    f"seabed increment peaks at {_peak_inc:.2f} psu, below the 0.5 psu threshold.\n"
-                    f"The near-field impact footprint does exceed it (see section 4).",
-                    xy=(0.03, 0.80), xycoords="axes fraction", fontsize=8.5, color=viz.INK)
-    ax.legend()
+    _areas = ["area_0p5psu_km2", "area_1p0psu_km2", "area_1p5psu_km2"]
+    _all_zero = float(dft[_areas].max().max()) == 0.0
+    _bg = C.AMBIENT["background_salinity_psu"]
+    _inc = dft.max_seabed_salinity_psu - _bg
+    # Plotting three all-zero area curves produced three coincident lines on the axis:
+    # no information, and legend swatches that cannot be told apart.  Plot the quantity
+    # that explains the zeros instead - the peak seabed increment against the contour
+    # thresholds it never reaches.
+    fig, ax = viz.new_ax((7.5, 5),
+                         "Peak seabed salinity increment vs discharge flow "
+                         "(why every influence area is 0.000 km2)",
+                         "Brine discharge (m3/hr)", "Peak seabed increment above ambient (psu)")
+    xs = np.arange(len(dft))
+    bars = ax.bar(xs, _inc, width=0.55, color="#0072B2", edgecolor="#0b2545",
+                  linewidth=1.2, zorder=3)
+    for x, v, sid in zip(xs, _inc, dft.scenario):
+        ax.annotate(f"+{v:.2f} psu", (x, v), xytext=(0, 6), textcoords="offset points",
+                    ha="center", fontsize=11, fontweight="bold", color="#0b2545")
+    # Distinct hue AND dash pattern per threshold: three dashed lines in similar blues
+    # and greens were not separable on a projector.
+    for thr, col, ls in [(0.5, "#E69F00", "--"), (1.0, "#009E73", "-."), (1.5, "#C1121F", ":")]:
+        ax.axhline(thr, color=col, ls=ls, lw=2.6, zorder=2,
+                   label=f"{thr:.1f} psu contour - area 0.000 km2")
+    ax.set_xticks(xs)
+    ax.set_xticklabels([f"{sid}\n{int(f)} m3/hr" for sid, f in zip(dft.scenario, dft.flow_m3hr)])
+    # Headroom above the 1.5 psu line for the legend; the note sits in the clear band
+    # between the 0.5 and 1.0 psu contours.
+    ax.set_ylim(0, 2.0)
+    ax.legend(fontsize=9, loc="upper right", framealpha=1.0)
+    if _all_zero:
+        ax.annotate(f"On the {C.FAR_FIELD['dx_m']:.0f} m regional grid the seabed increment never "
+                    f"reaches the lowest\n0.5 psu contour, so all three influence areas are exactly "
+                    f"0.000 km2.\nThe near-field impact footprint does exceed it (see section 4).",
+                    xy=(0.5, 0.36), xycoords="axes fraction", ha="center", va="center",
+                    fontsize=9, color=viz.INK)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/G_area_vs_flow.png"),
-               "Area enclosed by salinity-increment contours vs discharge flow. All three areas are "
-               "zero on the regional grid, whose peak seabed increment is "
-               f"{_peak_inc:.2f} psu; the zeros are grid-resolved, not absolute.", sec)
+               "Peak seabed salinity increment by discharge scenario, against the 0.5, 1.0 and "
+               f"1.5 psu contour thresholds. The increment peaks at {_inc.max():.2f} psu, so every "
+               "influence area is 0.000 km2; the zeros are grid-resolved, not absolute.", sec)
 
     # validation skill bar
     sk = RESULTS["skill"]
