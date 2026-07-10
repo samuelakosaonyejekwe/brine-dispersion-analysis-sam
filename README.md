@@ -13,7 +13,7 @@ Brine discharges from desalination plants and solution-mined storage caverns are
 
 **UBDS unifies both regimes in a single, open, dynamically-coupled, mass-conserving framework.** The same solver describes negatively buoyant (brine), positively buoyant (thermal/freshwater) and neutral (tracer) discharges without special-casing, and it carries the near-field result directly into the far-field transport engine, removing the manual transfer and the mass-conservation errors it introduces.
 
-This repository contains the solver package (`ubds/`), a complete worked case study as a report (`case.pdf`), and the figures and animations that the study produced (`outputs/`).
+This repository contains the solver package (`ubds/`), the scripts that run the case study end to end, the validation suite, a complete worked case study as a report (`case.pdf`), and the figures, tables and animations that the study produced (`outputs/`).
 
 ---
 
@@ -67,10 +67,27 @@ ubds/                      The solver package
   metrics.py               Dilution, mixing-zone, impact-area and EQS-compliance metrics
   viz.py                   Publication plotting helpers (colour-blind safe; never pure black)
 
+case_inputs.py             All site-specific inputs (synthetic, documented, physically credible)
+case_geometry.py           Bathymetry and nested-domain construction
+run_case_study.py          Runs the whole study and writes outputs/ + the artifact manifest
+run_helpers.py             Artifact registry and CSV helpers
+make_animations.py         Tidal-cycle GIFs and filmstrip
+build_docx.py              Assembles case.docx (-> case.pdf) from the manifest
+render_pdf_refs.py         Reference-figure rendering
+
+validation/
+  validate.py              Benchmarks vs analytical laws and published experimental data
+  SOURCES.md               Provenance of every benchmark and reference value
+  validation_summary.json  Machine-readable benchmark results
+
 outputs/
   figures/                 Charts, maps, contours, dilution curves, current vectors, profiles
+  csv/                     The tabular data behind every figure
   animations/              GIF animations + filmstrip of the dispersion over a tidal cycle
 ```
+
+Reproduce the study with `python run_case_study.py`, then `python validation/validate.py`,
+`python make_animations.py` and `python build_docx.py`.
 
 ---
 
@@ -143,7 +160,20 @@ UBDS was checked against canonical analytical laws and published experimental da
 | Momentum jet — dilution slope | **0.228** per z/D | 0.25–0.32 | Fischer et al. (1979) |
 | Momentum jet — spread rate | **0.114** db/dz | ≈ 0.11 | Fischer et al. (1979) |
 | Pure plume — volume-flux exponent | **1.60** | 5/3 ≈ 1.67 | Morton, Taylor & Turner (1956) |
-| Inclined 60° dense jet | terminal-rise & dilution scaling | published ranges | Papakonstantis et al. (2011) |
+| Inclined 60° dense jet — return distance | **x_r/(D·Fr) = 2.57** | 2.2–3.3 | Papakonstantis et al. (2011) |
+| Inclined 60° dense jet — return dilution | **S_r(min)/Fr = 0.59** | 0.4–0.6 | Papakonstantis et al. (2011) |
+| Inclined 60° dense jet — terminal rise | **z_t/(D·Fr) = 1.53** | 1.6–2.2 — *outside the band* | Papakonstantis et al. (2011) |
+
+The terminal rise sits about 4 % below the published band. Refitting the entrainment coefficients
+closes it and lowers the calibration RMS from 7.8 % to 2.6 %, but pushes the independent 60° benchmark
+out of band — so the shipped coefficients stand and the deviation is reported rather than tuned away.
+
+**On the hydrodynamic "calibration".** Bahía Azul is a fictitious site, so there are no measured
+currents for it. The ADCP and tidal-level series the model is scored against are the model solution
+itself, perturbed by a 3 % bias and random noise. The resulting Willmott and Nash–Sutcliffe scores
+(d = 0.992–0.999, NSE = 0.967–0.996) therefore quantify that imposed perturbation and exercise the
+skill-metric pipeline. **They are not evidence of agreement with field data** and are not counted as
+validation. The table above is the independent evidence.
 
 **Selected references / data sources**
 

@@ -1,0 +1,542 @@
+[
+  {
+    "kind": "csv",
+    "path": "outputs/csv/A_nearfield_initial_dilution.csv",
+    "caption": "Near-field initial-dilution results (bulk top-hat dilution and salinity at first seabed contact) for all brine types, flow scenarios and tidal states.",
+    "section": "Near-field initial dilution"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/A_nearfield_RO_S1.png",
+    "caption": "Near-field trajectory, dilution and salinity - RO concentrate, 300 m3/hr (300 m3/hr per port).",
+    "section": "Near-field initial dilution"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/A_nearfield_RO_S2.png",
+    "caption": "Near-field trajectory, dilution and salinity - RO concentrate, 700 m3/hr (350 m3/hr per port).",
+    "section": "Near-field initial dilution"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/A_nearfield_RO_S3.png",
+    "caption": "Near-field trajectory, dilution and salinity - RO concentrate, 1200 m3/hr (300 m3/hr per port).",
+    "section": "Near-field initial dilution"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/A_nearfield_Sa_S1.png",
+    "caption": "Near-field trajectory, dilution and salinity - Saturated cavern brine, 300 m3/hr (300 m3/hr per port).",
+    "section": "Near-field initial dilution"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/A_nearfield_Sa_S2.png",
+    "caption": "Near-field trajectory, dilution and salinity - Saturated cavern brine, 700 m3/hr (350 m3/hr per port).",
+    "section": "Near-field initial dilution"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/A_nearfield_Sa_S3.png",
+    "caption": "Near-field trajectory, dilution and salinity - Saturated cavern brine, 1200 m3/hr (300 m3/hr per port).",
+    "section": "Near-field initial dilution"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/A_scenario_comparison.png",
+    "caption": "Seabed initial dilution by flow scenario and tidal state.",
+    "section": "Near-field initial dilution"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/A2_port_angle_optimisation.csv",
+    "caption": "Effect of diffuser port discharge angle on near-field dilution (300 m3/hr, neap).",
+    "section": "Diffuser design optimisation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/A2_angle_opt.png",
+    "caption": "Diffuser port-angle optimisation: dilution and seabed salinity vs discharge angle.",
+    "section": "Diffuser design optimisation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_mesh_medium.png",
+    "caption": "Medium-field mesh & bathymetry (Bahia Azul)",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_mesh_far.png",
+    "caption": "Far-field (regional) domain & bathymetry",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_stations.png",
+    "caption": "Diffuser location & ADCP current-meter stations",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_adcp_A0.png",
+    "caption": "Modelled vs observed current speed & direction at station A0 (neap & spring).",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_adcp_A1.png",
+    "caption": "Modelled vs observed current speed & direction at station A1 (neap & spring).",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_adcp_A2.png",
+    "caption": "Modelled vs observed current speed & direction at station A2 (neap & spring).",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_adcp_A3.png",
+    "caption": "Modelled vs observed current speed & direction at station A3 (neap & spring).",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_adcp_A4.png",
+    "caption": "Modelled vs observed current speed & direction at station A4 (neap & spring).",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/B_current_validation_skill.csv",
+    "caption": "Hydrodynamic calibration skill (RMSE, Willmott index, Nash-Sutcliffe) at ADCP stations.",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_tidal_level.png",
+    "caption": "Modelled vs observed tidal level (spring tide) at the calibration station.",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/B_tidal_level.csv",
+    "caption": "Tidal-level validation time series.",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_flowfield_flood.png",
+    "caption": "Depth-averaged tidal flow field at flood (spring tide).",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/B_flowfield_ebb.png",
+    "caption": "Depth-averaged tidal flow field at ebb (spring tide).",
+    "section": "Hydrodynamics, mesh & calibration"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_sigma_layers.png",
+    "caption": "Variation of the terrain-following sigma layers with water depth (9-layer scheme).",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_layersens_4.png",
+    "caption": "Maximum seabed salinity - 4-layer model (full flow, neap, saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_layersens_9.png",
+    "caption": "Maximum seabed salinity - 9-layer model (full flow, neap, saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_layersens_14.png",
+    "caption": "Maximum seabed salinity - 14-layer model (full flow, neap, saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_env_heights_panel.png",
+    "caption": "Maximum salinity vs height above the seabed - neap, full flow, saturated cavern brine (dense plume is bottom-trapped and decays upward)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_snap_neap_high_water.png",
+    "caption": "Seabed salinity & current vectors at high water - neap (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_vprof_neap_high_water.png",
+    "caption": "Vertical salinity profile at high water - neap (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_snap_neap_mid_ebb.png",
+    "caption": "Seabed salinity & current vectors at mid ebb - neap (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_vprof_neap_mid_ebb.png",
+    "caption": "Vertical salinity profile at mid ebb - neap (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_snap_neap_low_water.png",
+    "caption": "Seabed salinity & current vectors at low water - neap (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_vprof_neap_low_water.png",
+    "caption": "Vertical salinity profile at low water - neap (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_snap_neap_mid_flood.png",
+    "caption": "Seabed salinity & current vectors at mid flood - neap (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_vprof_neap_mid_flood.png",
+    "caption": "Vertical salinity profile at mid flood - neap (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_snap_spring_high_water.png",
+    "caption": "Seabed salinity & current vectors at high water - spring (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_snap_spring_mid_ebb.png",
+    "caption": "Seabed salinity & current vectors at mid ebb - spring (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_snap_spring_low_water.png",
+    "caption": "Seabed salinity & current vectors at low water - spring (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_snap_spring_mid_flood.png",
+    "caption": "Seabed salinity & current vectors at mid flood - spring (saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/C_env_springneap.png",
+    "caption": "Maximum seabed salinity over a full spring-neap cycle (full flow, saturated cavern brine)",
+    "section": "Medium-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/D_far_neap_scenarios.png",
+    "caption": "Far-field maximum seabed salinity by discharge scenario - neap tide (RO brine)",
+    "section": "Far-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/D_far_spring_S3.png",
+    "caption": "Far-field maximum seabed salinity - spring, full flow (RO brine)",
+    "section": "Far-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/D_far_springneap.png",
+    "caption": "Far-field maximum seabed salinity - spring-neap envelope (full flow, RO brine)",
+    "section": "Far-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/D_far_cavern.png",
+    "caption": "Far-field maximum seabed salinity - phase-2 saturated cavern brine (worst case)",
+    "section": "Far-field dispersion"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/D_influence_area_diffusion.csv",
+    "caption": "Influence areas of salinity increments and diffusion distances per flow scenario (far field).",
+    "section": "Far-field dispersion"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/E_salinity_transect.png",
+    "caption": "Maximum seabed salinity along a transect through the diffuser.",
+    "section": "Design comparison & optimisation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/E_salinity_transect.csv",
+    "caption": "Seabed salinity transect data.",
+    "section": "Design comparison & optimisation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/E_current_curve.png",
+    "caption": "Maximum current speed along the outfall corridor (spring tide).",
+    "section": "Design comparison & optimisation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/E_constraints.png",
+    "caption": "Distribution of marine development and environmental constraints relative to the mixing zone.",
+    "section": "Design comparison & optimisation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/E_optimised_layout.png",
+    "caption": "Recommended optimised diffuser/intake layout (inclined 4-port diffuser).",
+    "section": "Design comparison & optimisation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/H_intake_recirculation.csv",
+    "caption": "Salinity rise above ambient at the intake vs outfall distance from shore, by current condition (0.1 ppt recirculation criterion).",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/H_table1A_southward.csv",
+    "caption": "Rise in salinity at intake above ambient - southward 0.25 m/s.",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/H_table1B_weak.csv",
+    "caption": "Rise in salinity at intake above ambient - weak southward 0.05 m/s.",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/H_table1C_northward.csv",
+    "caption": "Rise in salinity at intake above ambient - northward 0.25 m/s.",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/H_intake_rise_curve.png",
+    "caption": "Variation of the maximum salinity rise at the intake with outfall distance from shore (recirculation criterion).",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/H_rise_contour_near.png",
+    "caption": "Salinity-rise contours, outfall 600 m from shore, weak southward current.",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/H_rise_contour_far.png",
+    "caption": "Salinity-rise contours, outfall 1200 m from shore, weak southward current.",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/H_timehist_near.png",
+    "caption": "Time history of salinity rise at intake and outfall, outfall 600 m from shore.",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/H_timehist_near.csv",
+    "caption": "Time-history data, outfall 600 m from shore.",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/H_timehist_far.png",
+    "caption": "Time history of salinity rise at intake and outfall, outfall 1200 m from shore.",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/H_timehist_far.csv",
+    "caption": "Time-history data, outfall 1200 m from shore.",
+    "section": "Outfall siting & recirculation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/F_layer_scheme.csv",
+    "caption": "Sigma-layer schemes: percentage of water-column depth per layer (bottom layer last).",
+    "section": "Inputs, parameters & water quality"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/F_model_parameters.csv",
+    "caption": "Hydrodynamic and transport model parameters.",
+    "section": "Inputs, parameters & water quality"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/F_impurities_eqs.csv",
+    "caption": "Trace-impurity concentrations in the brine vs EQS after near-field dilution.",
+    "section": "Inputs, parameters & water quality"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/F_impurities.png",
+    "caption": "Predicted receiving-water trace-impurity concentrations vs EQS thresholds.",
+    "section": "Inputs, parameters & water quality"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/G_dilution_vs_velocity.png",
+    "caption": "Seabed dilution as a function of tidal velocity for each brine type and scenario.",
+    "section": "Data plots"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/G_area_vs_flow.png",
+    "caption": "Area enclosed by salinity-increment contours vs discharge flow.",
+    "section": "Data plots"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/G_skill.png",
+    "caption": "Index-of-agreement between modelled and observed currents by station (spring).",
+    "section": "Data plots"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/V_eos_validation.csv",
+    "caption": "Equation-of-state validation against reference seawater/brine densities.",
+    "section": "Validation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/V_jet.png",
+    "caption": "Momentum-jet dilution: UBDS vs the canonical self-similar law (Fischer et al. 1979).",
+    "section": "Validation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/V_jet.csv",
+    "caption": "Round-jet dilution validation data.",
+    "section": "Validation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/V_plume.png",
+    "caption": "Pure-plume dilution: UBDS vs the 5/3 power law (Morton, Taylor & Turner 1956).",
+    "section": "Validation"
+  },
+  {
+    "kind": "csv",
+    "path": "outputs/csv/V_dense_jet.csv",
+    "caption": "Inclined (60 deg) dense-jet dimensionless geometry/dilution vs published ranges. S_r is reported both as the model's bulk (top-hat) dilution and converted to the centreline minimum dilution, which is what the published band refers to.",
+    "section": "Validation"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/V_dense_jet.png",
+    "caption": "Inclined 60 deg dense-jet dimensionless rise and dilution vs published experimental bands.",
+    "section": "Validation"
+  },
+  {
+    "kind": "animation",
+    "path": "outputs/animations/ANIM_brine_dispersion_spring.gif",
+    "caption": "Brine dispersion over a tidal cycle (full flow, spring)",
+    "section": "Animations"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/figures/ANIM_brine_dispersion_filmstrip.png",
+    "caption": "Brine dispersion over a tidal cycle (full flow, spring) (filmstrip of the animation).",
+    "section": "Animations"
+  },
+  {
+    "kind": "animation",
+    "path": "outputs/animations/ANIM_brine_dispersion_neap.gif",
+    "caption": "Brine dispersion over a tidal cycle (full flow, neap)",
+    "section": "Animations"
+  },
+  {
+    "kind": "animation",
+    "path": "outputs/animations/ANIM_current_field_spring.gif",
+    "caption": "Tidal current field over a cycle (spring)",
+    "section": "Animations"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/appendix_b_fig_p8.png",
+    "caption": "Reference Study 1 (salt-cavern brine outfall): model mesh, bathymetry and current-meter comparison.",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/appendix_b_fig_p25.png",
+    "caption": "Reference Study 1: near-field brine-plume trajectory and initial-dilution prediction.",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/appendix_b_fig_p33.png",
+    "caption": "Reference Study 1: sigma-layer scheme and layer-resolution sensitivity.",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/appendix_b_fig_p39.png",
+    "caption": "Reference Study 1: maximum seabed-salinity envelope and salinity/current snapshots.",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/appendix_b_fig_p55.png",
+    "caption": "Reference Study 1: far-field maximum seabed-salinity envelopes.",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/water_15_02402_fig_p4.png",
+    "caption": "Reference Study 2 (Laoshan Bay desalination): computational mesh and bathymetry of the bay.",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/water_15_02402_fig_p6.png",
+    "caption": "Reference Study 2: tidal flow-field simulation results.",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/water_15_02402_fig_p7.png",
+    "caption": "Reference Study 2: salinity-field results and salinity profile for the layout plans.",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/ijciet_fig_p4.png",
+    "caption": "Reference Study 3 (Chennai desalination): bathymetry and flexible computational mesh.",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/ijciet_fig_p5.png",
+    "caption": "Reference Study 3: hydrodynamic calibration (observed vs computed tidal level and current).",
+    "section": "Reference output figures (source studies)"
+  },
+  {
+    "kind": "figure",
+    "path": "outputs/pdf_reference_figures/ijciet_fig_p7.png",
+    "caption": "Reference Study 3: contours of salinity rise and time history at intake/outfall.",
+    "section": "Reference output figures (source studies)"
+  }
+]

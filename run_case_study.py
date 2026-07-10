@@ -481,12 +481,18 @@ def part_B_hydro():
                "B_stations.png", sec, C.MEDIUM_FIELD["outfall_xy"],
                stations=C.ADCP_STATIONS)
 
-    # --- ADCP current validation (synthetic credible observations) ----------
+    # --- ADCP current comparison (SYNTHETIC reference series) ---------------
+    # The "ADCP" series below is NOT an independent measurement: it is the model
+    # solution itself, perturbed by a fixed proportional bias and random noise.
+    # The resulting skill scores therefore quantify that imposed perturbation and
+    # exercise the skill-metric pipeline; they are not evidence of agreement with
+    # field data, and nothing in the report may present them as such.  Bahia Azul
+    # is a fictitious site and no measured currents exist for it.
     rng = np.random.default_rng(7)
     skill_rows = []
     for st in C.ADCP_STATIONS:
         fig, axes = plt.subplots(2, 2, figsize=(11.5, 8.0), layout="constrained")
-        fig.suptitle(f"Modelled vs observed current - station {st['name']}",
+        fig.suptitle(f"Modelled vs synthetic ADCP reference - station {st['name']}",
                      color=viz.INK, fontweight="bold")
         for col, (hyd, lab) in enumerate([(med_n, "neap"), (med_s, "spring")]):
             f, g, X, Y = drive_fields(hyd, "medium")
@@ -496,15 +502,15 @@ def part_B_hydro():
             t = (f["t"] - f["t"][0]) / 3600.0
             spd = np.hypot(u, v)
             drc = (np.degrees(np.arctan2(u, v)) + 360) % 360   # from North
-            # synthetic observations: model + bias + noise + small phase lag
-            # synthetic observations: small proportional bias + noise scaled to
-            # the local signal amplitude (so low-current stations are not swamped
-            # by absolute noise) -> credible good agreement at every station
+            # Synthetic reference: the model signal with a small proportional
+            # bias plus noise scaled to the local amplitude, so that low-current
+            # stations are not swamped by absolute noise.  Good agreement here is
+            # imposed, not demonstrated.
             amp = max(float(spd.std()), 0.03)
             obs_spd = np.clip(spd * (1 + 0.03) + rng.normal(0, 0.06 * amp, spd.shape), 0, None)
             obs_dir = (drc + rng.normal(2.5, 4.0, drc.shape)) % 360
             axes[0, col].plot(t, spd, color="#2a6f97", lw=2, label="UBDS model")
-            axes[0, col].plot(t, obs_spd, "o", color="#d1495b", ms=3, label="Observed (ADCP)")
+            axes[0, col].plot(t, obs_spd, "o", color="#d1495b", ms=3, label="Synthetic ADCP reference")
             axes[0, col].set_title(f"{lab}: speed"); axes[0, col].set_ylabel("Speed (m/s)")
             axes[1, col].plot(t, drc, color="#2a6f97", lw=2)
             axes[1, col].plot(t, obs_dir, "o", color="#d1495b", ms=3)
@@ -519,24 +525,29 @@ def part_B_hydro():
                                    willmott_d=round(metrics.skill_willmott(spd, obs_spd), 3),
                                    nse=round(metrics.nash_sutcliffe(spd, obs_spd), 3)))
         H.register("figure", viz.save(fig, f"{H.FIG_DIR}/B_adcp_{st['name']}.png"),
-                   f"Modelled vs observed current speed & direction at station {st['name']} (neap & spring).", sec)
+                   f"Modelled current speed & direction at station {st['name']} (neap & spring), against a "
+                   f"synthetic ADCP reference generated from the model solution with a 3 percent bias "
+                   f"and random noise. Not an independent measurement.", sec)
     sk = pd.DataFrame(skill_rows)
     H.write_csv(sk, "B_current_validation_skill.csv",
-                "Hydrodynamic calibration skill (RMSE, Willmott index, Nash-Sutcliffe) at ADCP stations.", sec)
+                "Skill of the model against the synthetic ADCP reference series (RMSE, Willmott index, "
+                "Nash-Sutcliffe). The reference is the model solution plus an imposed bias and noise, "
+                "so these scores measure that perturbation, not agreement with field data.", sec)
     RESULTS["skill"] = sk
 
     # --- tidal-level validation (PDF2 style) --------------------------------
     t = (med_s["t"] - med_s["t"][0]) / 3600.0
     eta_mod = med_s["eta"][:, med_s["grid"].ny // 2, med_s["grid"].nx // 2]
     eta_obs = eta_mod * 1.02 + rng.normal(0, 0.04, eta_mod.shape)
-    fig, ax = viz.new_ax((8, 4.4), "Tidal-level validation (spring) - station T1",
+    fig, ax = viz.new_ax((8, 4.4), "Modelled vs synthetic tidal-level reference (spring) - station T1",
                          "Time (h)", "Water level (m, CD)")
     ax.plot(t, eta_mod, color="#2a6f97", lw=2, label="UBDS model")
-    ax.plot(t, eta_obs, "o", color="#d1495b", ms=3, label="Observed")
+    ax.plot(t, eta_obs, "o", color="#d1495b", ms=3, label="Synthetic reference")
     ax.legend()
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/B_tidal_level.png"),
-               "Modelled vs observed tidal level (spring tide) at the calibration station.", sec)
-    td = pd.DataFrame({"time_h": t, "model_m": eta_mod, "observed_m": eta_obs})
+               "Modelled tidal level (spring tide) against a synthetic reference series derived from the "
+               "model solution with an imposed bias and noise. Not an independent measurement.", sec)
+    td = pd.DataFrame({"time_h": t, "model_m": eta_mod, "synthetic_ref_m": eta_obs})
     H.write_csv(td, "B_tidal_level.csv", "Tidal-level validation time series.", sec)
 
     # --- tidal flow field: flood & ebb snapshots (speed + vectors) ----------

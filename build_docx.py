@@ -199,12 +199,14 @@ if far is not None:
         f"governs the seabed-salinity assessment."))
 para(
  "The solver was tested against canonical self-similar jet and plume dilution laws, "
- "published inclined dense-jet experimental data, reference seawater/brine densities, "
- "and a synthetic ADCP current-meter dataset. The equation of state, the dense-jet "
+ "published inclined dense-jet experimental data, and reference seawater/brine densities. "
+ "The equation of state, the dense-jet "
  "return distance and the dense-jet return-point dilution fall inside their reference "
  "ranges; the round-jet dilution slope, the pure-plume exponent and the dense-jet "
  "terminal rise fall a few per cent outside theirs. Each deviation is quantified in the "
- "Validation section rather than asserted away. Data sources are recorded there also.")
+ "Validation section rather than asserted away. Data sources are recorded there also. "
+ "The hydrodynamic skill scores in section 3 are not part of this evidence: the ADCP "
+ "series they score against is synthetic, derived from the model solution itself.")
 
 # ===========================================================================
 # 1 INTRODUCTION & SOLVER
@@ -292,8 +294,19 @@ para("Two nested structured-grid domains were configured: a high-resolution medi
 add_section_figs("Hydrodynamics, mesh & calibration")
 add_table_from_csv(f"{H.CSV_DIR}/F_layer_scheme.csv",
                    "Sigma-layer schemes (% of water-column depth per layer).")
+para("A note on what the skill scores below do and do not show. Bahia Azul is a fictitious "
+     "site, so no measured currents exist for it. The 'ADCP' series is the model solution "
+     "itself, perturbed by a 3 per cent proportional bias and random noise scaled to the local "
+     "signal amplitude. The Willmott index and Nash-Sutcliffe efficiency reported here "
+     "therefore quantify that imposed perturbation and confirm that the skill-metric pipeline "
+     "behaves correctly. They are NOT evidence that the hydrodynamic engine reproduces field "
+     "measurements, and they must not be read as calibration against observations. The "
+     "independent evidence for the solver is in the Validation section, which compares it "
+     "against published experimental data and analytical laws.")
 add_table_from_csv(f"{H.CSV_DIR}/B_current_validation_skill.csv",
-                   "Hydrodynamic calibration skill at the ADCP stations.")
+                   "Model skill against the synthetic ADCP reference series. The reference is the "
+                   "model solution plus an imposed bias and noise, so near-unity scores are expected "
+                   "by construction and are not a field validation.")
 
 # ===========================================================================
 # 4 NEAR FIELD
@@ -475,7 +488,7 @@ for s in sources:
 h2("10.2  Supporting data plots")
 para("Derived plots summarising the tabulated results above: seabed dilution against tidal "
      "velocity, salinity-increment area against discharge flow, and the per-station "
-     "index-of-agreement for the current calibration.")
+     "index-of-agreement against the synthetic current reference.")
 add_section_figs("Data plots")
 
 # ===========================================================================
@@ -487,7 +500,7 @@ para("The UBDS solver provides a single, open, physically-validated framework sp
      "the Bahia Azul case study with fully documented, credible site-specific inputs, it "
      f"demonstrates that the proposed inclined {C.DIFFUSER['n_ports_installed']}-port diffuser achieves effective initial "
      "dilution and confines significant salinity increments and all trace impurities to within "
-     "the regulatory mixing zone, across the full range of discharge flows and tidal states.")
+     "the regulatory mixing zone, across all simulated discharge flows and tidal states.")
 
 # ===========================================================================
 # APPENDIX - OUTPUT INVENTORY
