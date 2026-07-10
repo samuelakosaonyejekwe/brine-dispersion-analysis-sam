@@ -936,7 +936,10 @@ def part_F_tables():
     for param, (brine_c, sw_c, eqs) in C.BRINE["impurities_ugL"].items():
         comp = metrics.eqs_compliance(brine_c, dil, eqs, background_ugL=sw_c)
         rows.append(dict(parameter=param, brine_ugL=brine_c, seawater_ugL=sw_c,
-                         eqs_ugL=eqs, dilution=round(dil, 0),
+                         # 1 dp: rounding to 0 dp printed x14 while the predicted
+                         # concentrations were computed with x14.3, so the table
+                         # did not reproduce its own numbers.
+                         eqs_ugL=eqs, dilution=round(dil, 1),
                          predicted_ugL=round(comp["predicted_ugL"], 3),
                          margin_x=round(comp["margin"], 1),
                          compliant="Yes" if comp["compliant"] else "No"))
