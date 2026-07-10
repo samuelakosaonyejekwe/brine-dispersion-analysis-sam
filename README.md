@@ -157,14 +157,15 @@ UBDS was checked against canonical analytical laws and published experimental da
 | Benchmark | UBDS | Reference | Source |
 |---|---|---|---|
 | Seawater/brine density | max error **0.40 %** | EOS-80 / CRC densities | UNESCO (1981); CRC Handbook |
-| Momentum jet — dilution slope | **0.228** per z/D | 0.25–0.32 | Fischer et al. (1979) |
+| Momentum jet — dilution slope | **0.228** per z/D | 0.25–0.32 — *below the band* | Fischer et al. (1979) |
 | Momentum jet — spread rate | **0.114** db/dz | ≈ 0.11 | Fischer et al. (1979) |
-| Pure plume — volume-flux exponent | **1.60** | 5/3 ≈ 1.67 | Morton, Taylor & Turner (1956) |
+| Pure plume — volume-flux exponent | **1.60** | 5/3 ≈ 1.67 — *4 % below* | Morton, Taylor & Turner (1956) |
 | Inclined 60° dense jet — return distance | **x_r/(D·Fr) = 2.57** | 2.2–3.3 | Papakonstantis et al. (2011) |
 | Inclined 60° dense jet — return dilution | **S_r(min)/Fr = 0.59** | 0.4–0.6 | Papakonstantis et al. (2011) |
 | Inclined 60° dense jet — terminal rise | **z_t/(D·Fr) = 1.53** | 1.6–2.2 — *outside the band* | Papakonstantis et al. (2011) |
 
-The terminal rise sits about 4 % below the published band. Refitting the entrainment coefficients
+Three quantities sit just outside their reference ranges: the round-jet dilution slope, the pure-plume
+exponent and the dense-jet terminal rise. Each is stated above rather than rounded into agreement. Refitting the entrainment coefficients
 closes it and lowers the calibration RMS from 7.8 % to 2.6 %, but pushes the independent 60° benchmark
 out of band — so the shipped coefficients stand and the deviation is reported rather than tuned away.
 
