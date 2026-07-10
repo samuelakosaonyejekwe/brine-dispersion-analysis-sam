@@ -1156,9 +1156,12 @@ def part_G_csv_plots():
     xs = np.arange(len(dft))
     bars = ax.bar(xs, _inc, width=0.55, color="#0072B2", edgecolor="#0b2545",
                   linewidth=1.2, zorder=3)
+    # Values sit inside the bar tops.  Above them, the tallest (+0.39 psu) collided
+    # with the 0.5 psu threshold line, which is the one line it must be seen to clear.
     for x, v, sid in zip(xs, _inc, dft.scenario):
-        ax.annotate(f"+{v:.2f} psu", (x, v), xytext=(0, 6), textcoords="offset points",
-                    ha="center", fontsize=11, fontweight="bold", color="#0b2545")
+        ax.annotate(f"+{v:.2f} psu", (x, v), xytext=(0, -8), textcoords="offset points",
+                    ha="center", va="top", fontsize=11, fontweight="bold",
+                    color="white", zorder=4)
     # Distinct hue AND dash pattern per threshold: three dashed lines in similar blues
     # and greens were not separable on a projector.
     for thr, col, ls in [(0.5, "#E69F00", "--"), (1.0, "#009E73", "-."), (1.5, "#C1121F", ":")]:
