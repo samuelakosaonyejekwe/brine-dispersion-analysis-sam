@@ -181,8 +181,18 @@ if far is not None:
         _area = (f"the salinity increment of 0.5 psu above background is confined to an area of "
                  f"{s3.area_0p5psu_km2:.3f} km2")
     else:
-        _area = ("the seabed salinity increment nowhere reaches 0.5 psu above background, so no "
-                 "0.5 psu influence area exists in the RO base case")
+        # The zero area is a statement about the regional grid, not about the plume:
+        # the far-field cell is far coarser than the near-field impact footprint, and
+        # the increment does exceed 0.5 psu inside that footprint at slack water.
+        _far_inc = far.max_seabed_salinity_psu.max() - C.AMBIENT["background_salinity_psu"]
+        _nf_inc = (RESULTS["nearfield"].query("brine=='RO concentrate'").seabed_salinity_psu.max()
+                   - C.AMBIENT["background_salinity_psu"])
+        _area = (f"no 0.5 psu influence area is resolved on the regional grid, whose seabed "
+                 f"increment peaks at {_far_inc:.2f} psu. The reported 0.000 km2 is therefore a "
+                 f"statement about the {C.FAR_FIELD['dx_m']:.0f} m regional cell, not a claim that "
+                 f"the increment is nowhere above 0.5 psu: at the near-field impact footprint at "
+                 f"slack water it reaches {_nf_inc:.2f} psu, over a scale the regional grid cannot "
+                 f"resolve")
     para(
      f"The medium- and far-field assessment confirms that, at the maximum discharge "
      f"of {C.SCENARIOS[-1]['flow_m3hr']} m3/hr, {_area}, with "
@@ -386,8 +396,20 @@ add_section_figs("Medium-field dispersion")
 # ===========================================================================
 h1("6  Far-Field Dispersion")
 add_section_figs("Far-field dispersion")
+_far_inc = far.max_seabed_salinity_psu.max() - C.AMBIENT["background_salinity_psu"]
+_nf_inc = (RESULTS["nearfield"].query("brine=='RO concentrate'").seabed_salinity_psu.max()
+           - C.AMBIENT["background_salinity_psu"])
+para(f"How to read the zeros in the table below. On the {C.FAR_FIELD['dx_m']:.0f} m regional grid the "
+     f"seabed salinity increment peaks at {_far_inc:.2f} psu, below the lowest reported threshold of "
+     f"0.5 psu, so every influence area evaluates to exactly 0.000 km2 and the mixing-zone radius to "
+     f"0 m. These are grid-resolved quantities. They do not mean the increment never exceeds 0.5 psu "
+     f"anywhere: the near-field solution reaches {_nf_inc:.2f} psu above background at the impact "
+     f"footprint at slack water (section 4), on a scale of metres that a "
+     f"{C.FAR_FIELD['dx_m']:.0f} m cell cannot represent. The regional figures therefore bound the "
+     f"far-field footprint, and the near-field solution governs the immediate seabed impact.")
 add_table_from_csv(f"{H.CSV_DIR}/D_influence_area_diffusion.csv",
-                   "Salinity-increment influence areas and diffusion distances per scenario.")
+                   "Salinity-increment influence areas and diffusion distances per scenario. Areas are "
+                   "resolved on the regional grid; see the note above on what the zeros mean.")
 
 # ===========================================================================
 # 7 DESIGN OPTIMISATION
