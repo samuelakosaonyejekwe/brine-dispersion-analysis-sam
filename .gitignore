@@ -15,3 +15,4 @@ outputs/_backup_v1/
 outputs/pdf_reference_figures/
 outputs/results.pkl
 outputs/manifest.json
+outputs/manifest.json.*
