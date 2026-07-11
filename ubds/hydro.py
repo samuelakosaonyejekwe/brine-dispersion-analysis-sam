@@ -14,6 +14,9 @@ scheme, with:
     * non-linear advection of momentum
     * a selective sponge at the open offshore boundary that absorbs the 2*dx
       Coriolis computational mode without damping the resolved tidal signal
+    * a Flather (1976) non-reflecting radiation condition on the offshore
+      boundary that lets the smooth reflected residual radiate out cleanly
+      rather than accumulating against a zero-gradient wall
 
 Governing equations (eta = free-surface elevation, H = h + eta = total depth,
 u,v = depth-averaged velocities):
@@ -103,8 +106,13 @@ class HydroModel:
                  manning=0.025, Ah=2.0, latitude=54.8, g=9.81,
                  smagorinsky=0.2, use_smagorinsky=False,
                  stream_amp=0.0, stream_bearing_deg=180.0,
-                 sponge_cells=12, sponge_rate=0.5):
+                 sponge_cells=12, sponge_rate=0.5, east_bc="zerograd"):
         self.g = g
+        # offshore (east) open-boundary treatment:
+        #   "zerograd" - zero-gradient (reflective); "flather" - Flather (1976)
+        #   non-reflecting radiation, u_b = sqrt(g/H)*eta_b, which lets the
+        #   smooth reflected residual radiate out instead of piling up at the wall.
+        self.east_bc = east_bc
         self.grid = grid
         self.forcing = forcing
         self.manning = manning
@@ -199,7 +207,9 @@ class HydroModel:
         eta_n = self.forcing.elevation(t, lag_deg=self.forcing.sn_lag_deg)
         eta_new[0, :] = eta_s
         eta_new[-1, :] = eta_n
-        eta_new[:, -1] = eta_new[:, -2]
+        if self.east_bc != "flather":
+            eta_new[:, -1] = eta_new[:, -2]   # zero-gradient (reflective)
+        # (flather: keep the continuity-computed elevation at the open east edge)
         eta_new = np.where(self.wet, eta_new, 0.0)
         self.eta = eta_new
 
@@ -275,7 +285,12 @@ class HydroModel:
         # ---- boundaries: open N/S (free v), offshore open, west coast closed
         vn[0, :] = vn[1, :]                         # south open (free)
         vn[-1, :] = vn[-2, :]                       # north open (free)
-        un[:, -1] = un[:, -2]                       # offshore (east) open
+        if self.east_bc == "flather":
+            # Flather (1976) non-reflecting radiation of the normal velocity:
+            # u_b = u_ext + sqrt(g/H)*(eta_b - eta_ext), with u_ext=eta_ext=0.
+            un[:, -1] = np.sqrt(g / np.maximum(Hu[:, -1], 0.05)) * eta_new[:, -1]
+        else:
+            un[:, -1] = un[:, -2]                   # offshore (east) open (zero-grad)
         un[:, 0] = 0.0                              # west coast closed
         un *= self.wet_u
         vn *= self.wet_v
