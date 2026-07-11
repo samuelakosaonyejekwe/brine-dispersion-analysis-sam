@@ -100,7 +100,8 @@ class HydroModel:
     def __init__(self, grid: Grid, forcing: TidalForcing,
                  manning=0.025, Ah=2.0, latitude=54.8, g=9.81,
                  smagorinsky=0.2, use_smagorinsky=False,
-                 stream_amp=0.0, stream_bearing_deg=180.0):
+                 stream_amp=0.0, stream_bearing_deg=180.0,
+                 sponge_cells=12, sponge_rate=0.5):
         self.g = g
         self.grid = grid
         self.forcing = forcing
@@ -128,6 +129,27 @@ class HydroModel:
         self.wet_v = np.zeros_like(self.v, dtype=bool)
         self.wet_v[1:-1, :] = wet[1:, :] & wet[:-1, :]
         self.umax = 1.6                     # velocity clamp (m/s, caps wet/dry edge spikes)
+
+        # Selective sponge at the open offshore (east) boundary.  The C-grid
+        # Coriolis averaging admits a 2*dx null-mode; the horizontal x-diffusion
+        # is only applied at interior faces, so that mode is undamped at the open
+        # east edge, accumulates there and the zero-gradient boundary reflects it
+        # inward along a resonant row.  Over the last ``sponge_cells`` columns a
+        # ramped 1-2-1 smoothing is applied to the velocity each step.  Because a
+        # 1-2-1 filter has transfer function cos^2(k*dx/2), it removes ONLY the
+        # 2*dx deviation and leaves the smooth tidal signal untouched - so the
+        # resolved current (and the offshore ADCP station that sits in this zone)
+        # keeps its physical amplitude while the checkerboard is absorbed.  The
+        # ramp is quadratic and confined to the quiet far-offshore, east of the
+        # diffuser and the coastal jet, so no downstream result is affected.
+        self.sp_u = self._sponge_field(self.u.shape[1], sponge_cells, sponge_rate)[None, :]
+        self.sp_v = self._sponge_field(self.v.shape[1], sponge_cells, sponge_rate)[None, :]
+
+    @staticmethod
+    def _sponge_field(n, cells, strength):
+        idx = np.arange(n)
+        ramp = np.clip((idx - (n - cells)) / max(cells, 1), 0.0, 1.0) ** 2
+        return strength * ramp
 
     # -- helpers ------------------------------------------------------------
     def _H_centre(self):
@@ -238,6 +260,15 @@ class HydroModel:
         lap_v[:, 1:-1] += (v[1:-1, 2:] - 2 * v[1:-1, 1:-1] + v[1:-1, :-2]) / dx ** 2
         rhs_v = -adv_v + cor_v - dpdy + Ah * lap_v + ay
         vn[1:-1, :] = (v_int + dt * rhs_v) / (1 + dt * frv)
+
+        # ---- offshore sponge: ramped 1-2-1 smoothing over the last columns to
+        # absorb the 2*dx mode before it reflects.  Adding 0.25*sp*d2/dx2 is a
+        # sp-weighted 1-2-1 pass: it annihilates the 2*dx deviation but leaves the
+        # smooth tidal signal (whose curvature is ~0) intact.
+        lu = np.zeros_like(un); lu[:, 1:-1] = un[:, 2:] - 2 * un[:, 1:-1] + un[:, :-2]
+        un[:, 1:-1] += 0.25 * self.sp_u[:, 1:-1] * lu[:, 1:-1]
+        lv = np.zeros_like(vn); lv[:, 1:-1] = vn[:, 2:] - 2 * vn[:, 1:-1] + vn[:, :-2]
+        vn[:, 1:-1] += 0.25 * self.sp_v[:, 1:-1] * lv[:, 1:-1]
 
         # ---- boundaries: open N/S (free v), offshore open, west coast closed
         vn[0, :] = vn[1, :]                         # south open (free)
