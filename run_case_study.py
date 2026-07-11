@@ -64,8 +64,9 @@ def run_hydro_state(field, label):
     forcing = hydro.TidalForcing(amp=FORCE["amp"], pha=FORCE["pha"],
                                  sn_lag_deg=TIDE_LAG[label])
     m = hydro.HydroModel(grid_c, forcing, manning=C.MODEL["manning_n"],
-                         Ah=10.0, latitude=C.SITE["latitude_deg"])
-    dt = m.cfl_dt(0.85)
+                         Ah=C.MODEL["horizontal_eddy_viscosity_m2s"],
+                         latitude=C.SITE["latitude_deg"])
+    dt = max(m.cfl_dt(C.MODEL["cfl_number"]), C.MODEL["min_timestep_s"])
     T = C.MODEL["tidal_period_s"]
     res = hydro.run_hydro(m, t_end=2.0 * T + 3600, dt=dt, spin_up=1.0 * T,
                           sample_dt=T / 36)

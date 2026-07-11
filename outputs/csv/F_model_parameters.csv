@@ -1,8 +1,8 @@
 Parameter,Value
 Minimum time step,0.4 s
-CFL number,0.45
+CFL number,0.85
 Manning coefficient n,0.025 (0.022-0.04)
-Horizontal eddy viscosity,2.0 m2/s
+Horizontal eddy viscosity,10.0 m2/s
 Smagorinsky constant,0.2
 Horizontal dispersion,1.0 m2/s
 Vertical diffusivity,0.0005 m2/s
