@@ -68,8 +68,8 @@ def run_hydro_state(field, label):
                          latitude=C.SITE["latitude_deg"])
     dt = max(m.cfl_dt(C.MODEL["cfl_number"]), C.MODEL["min_timestep_s"])
     T = C.MODEL["tidal_period_s"]
-    res = hydro.run_hydro(m, t_end=2.0 * T + 3600, dt=dt, spin_up=1.0 * T,
-                          sample_dt=T / 36)
+    res = hydro.run_hydro(m, t_end=2.0 * T + 3600, dt=dt,
+                          spin_up=C.MODEL["spin_up_cycles"] * T, sample_dt=T / 36)
     np.savez_compressed(cache, u=res["u"], v=res["v"], eta=res["eta"],
                         t=res["t"])
     return dict(grid=grid_c, X=Xc, Y=Yc, u=res["u"], v=res["v"],

@@ -12,6 +12,8 @@ scheme, with:
     * horizontal turbulent mixing (constant or Smagorinsky eddy viscosity)
     * Coriolis acceleration
     * non-linear advection of momentum
+    * a selective sponge at the open offshore boundary that absorbs the 2*dx
+      Coriolis computational mode without damping the resolved tidal signal
 
 Governing equations (eta = free-surface elevation, H = h + eta = total depth,
 u,v = depth-averaged velocities):
