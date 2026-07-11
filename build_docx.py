@@ -629,6 +629,10 @@ _unshown = _all_fig_sections - _EMITTED_SECTIONS
 if _unshown:
     raise AssertionError(f"figures registered but never placed in the report: {sorted(_unshown)}")
 
+cp = doc.core_properties
+cp.author = C.SITE["assessor"].split(" (")[0]
+cp.last_modified_by = cp.author
+cp.title = C.SITE["name"] + " - Marine Brine-Dispersion Assessment"
 doc.save("case.docx")
 nf_ = sum(1 for a in MANIFEST if a["kind"] == "figure")
 nc_ = sum(1 for a in MANIFEST if a["kind"] == "csv")
