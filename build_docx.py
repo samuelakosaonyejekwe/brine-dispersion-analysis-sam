@@ -184,29 +184,30 @@ para(
  f"against a background of {C.AMBIENT['background_salinity_psu']} psu.")
 if far is not None:
     s3 = far[far.scenario == "S3"].iloc[0]
-    if s3.area_0p5psu_km2 > 0:
-        _area = (f"the salinity increment of 0.5 psu above background is confined to an area of "
-                 f"{s3.area_0p5psu_km2:.3f} km2")
-    else:
-        # The zero area is a statement about the regional grid, not about the plume:
-        # the far-field cell is far coarser than the near-field impact footprint, and
-        # the increment does exceed 0.5 psu inside that footprint at slack water.
-        _far_inc = far.max_seabed_salinity_psu.max() - C.AMBIENT["background_salinity_psu"]
-        _nf_inc = (RESULTS["nearfield"].query("brine=='RO concentrate'").seabed_salinity_psu.max()
-                   - C.AMBIENT["background_salinity_psu"])
-        _area = (f"no 0.5 psu influence area is resolved on the regional grid, whose seabed "
-                 f"increment peaks at {_far_inc:.2f} psu. The reported 0.000 km2 is therefore a "
-                 f"statement about the {C.FAR_FIELD['dx_m']:.0f} m regional cell, not a claim that "
-                 f"the increment is nowhere above 0.5 psu: at the near-field impact footprint at "
-                 f"slack water it reaches {_nf_inc:.2f} psu, over a scale the regional grid cannot "
-                 f"resolve")
+    # Resolved on the 25 m assessment grid. The 60 m regional grid cannot see a
+    # footprint this small and reports 0.000 km2 - a detection limit, not a result.
+    _area = (f"the salinity increment of 0.5 psu above background is confined to an area of "
+             f"{s3.area_0p5psu_km2:.4f} km2 on the {C.MEDIUM_FIELD['dx_m']:.0f} m assessment grid "
+             f"(the {C.FAR_FIELD['dx_m']:.0f} m regional grid cannot resolve a footprint this "
+             f"small and reports 0.000 km2; see section 6)")
+    _p2 = RESULTS.get("phase2_mz")
+    _p2w = _p2.loc[_p2.mixing_zone_radius_m.idxmax()] if _p2 is not None else None
     para(
-     f"The medium- and far-field assessment confirms that, at the maximum discharge "
-     f"of {C.SCENARIOS[-1]['flow_m3hr']} m3/hr, {_area}, with "
+     f"The medium- and far-field assessment confirms that, for the phase-1 RO concentrate at the "
+     f"maximum discharge of {C.SCENARIOS[-1]['flow_m3hr']} m3/hr, {_area}, with "
      f"the {C.THRESHOLDS['salinity_threshold_psu']} psu threshold not exceeded beyond "
      f"{s3.mixing_zone_radius_m:.0f} m from the diffuser - well within the "
      f"{C.THRESHOLDS['mixing_zone_radius_m']:.0f} m regulatory mixing zone. All trace "
      f"impurities remain below their Environmental Quality Standards after dilution. "
+     + (f"That compliance result does NOT extend to the phase-2 saturated cavern brine. At full "
+        f"flow the 250 psu cavern source exceeds the "
+        f"{C.THRESHOLDS['salinity_threshold_psu']} psu seabed threshold out to "
+        f"{_p2w.mixing_zone_radius_m:.0f} m from the diffuser over "
+        f"{_p2w.area_above_threshold_km2:.3f} km2 of seabed - roughly "
+        f"{_p2w.mixing_zone_radius_m / C.THRESHOLDS['mixing_zone_radius_m']:.0f} times the "
+        f"{C.THRESHOLDS['mixing_zone_radius_m']:.0f} m regulatory mixing zone (section 5). "
+        f"Phase 2 is therefore not permissible on this diffuser as modelled. "
+        if _p2w is not None and _p2w.compliant == "No" else "")
      + (f"The RO near-field dilutions above are extrapolated beyond the validated Froude "
         f"range (see section 4); the saturated-cavern-brine worst case, which lies inside "
         f"the validated range, governs the seabed-salinity assessment."
@@ -406,6 +407,40 @@ if ls:
           f"{100*(_vals[-1]-_vals[1])/_vals[-1]:.1f}%. Peak seabed salinity in this section should "
           f"therefore be read as a lower bound; the mixing-zone and area metrics, which depend on "
           f"the salinity field away from the peak cell, are far less sensitive to layer count."))
+
+# --- phase-2 mixing-zone compliance ----------------------------------------
+# The headline "mixing-zone radius = 0 m" is an RO-concentrate result. It was never
+# evaluated on the cavern envelope, which is the source this whole section models.
+_p2 = RESULTS.get("phase2_mz")
+if _p2 is not None:
+    _w = _p2.loc[_p2.mixing_zone_radius_m.idxmax()]
+    _thr = C.THRESHOLDS["salinity_threshold_psu"]
+    _mzr = C.THRESHOLDS["mixing_zone_radius_m"]
+    if _w.compliant == "No":
+        para(f"Phase-2 mixing-zone compliance: the threshold IS exceeded. The "
+             f"{_thr} psu seabed threshold is a regulatory limit, and the mixing-zone radius "
+             f"reported for the base case in section 6 is 0 m. That figure is computed on the RO "
+             f"concentrate, whose seabed increment never approaches the threshold. It is not a "
+             f"statement about the phase-2 source. Evaluated on the saturated-cavern envelope "
+             f"modelled in this section, the same metric gives a radius of "
+             f"{_w.mixing_zone_radius_m:.0f} m on the {_w.tide} case - about "
+             f"{_w.mixing_zone_radius_m / _mzr:.0f} times the {_mzr:.0f} m regulatory mixing zone - "
+             f"with {_w.area_above_threshold_km2:.3f} km2 of seabed above {_thr} psu. The cavern "
+             f"brine lands on the bed at 41-51 psu in the near field (section 4), so this outcome "
+             f"is consistent with the near-field solution rather than a surprise from it.")
+        para(f"Consequence. The phase-1 RO discharge, which is the discharge the plant is being "
+             f"built for, complies comfortably: the threshold is not exceeded anywhere and the "
+             f"mixing-zone radius is 0 m. The phase-2 saturated cavern brine, discharged at full "
+             f"flow through the same diffuser, does not comply and cannot be permitted on this "
+             f"design as modelled. Accommodating it would require a materially different discharge "
+             f"arrangement - substantially more ports, a longer diffuser, pre-dilution of the "
+             f"cavern stream, or a lower cavern discharge rate - and that redesign is outside the "
+             f"scope of this study. The statement that the diffuser accommodates the future cavern "
+             f"stream 'without redesign' applies to near-field dilution and water quality, not to "
+             f"mixing-zone compliance.")
+        add_table_from_csv(f"{H.CSV_DIR}/C_phase2_mixing_zone.csv",
+                           f"Phase-2 saturated cavern brine at full flow: extent of the {_thr} psu "
+                           f"seabed exceedance against the {_mzr:.0f} m regulatory mixing zone.")
 add_section_figs("Medium-field dispersion")
 
 # ===========================================================================
@@ -413,20 +448,35 @@ add_section_figs("Medium-field dispersion")
 # ===========================================================================
 h1("6  Far-Field Dispersion")
 add_section_figs("Far-field dispersion")
-_far_inc = far.max_seabed_salinity_psu.max() - C.AMBIENT["background_salinity_psu"]
-_nf_inc = (RESULTS["nearfield"].query("brine=='RO concentrate'").seabed_salinity_psu.max()
-           - C.AMBIENT["background_salinity_psu"])
-para(f"How to read the zeros in the table below. On the {C.FAR_FIELD['dx_m']:.0f} m regional grid the "
-     f"seabed salinity increment peaks at {_far_inc:.2f} psu, below the lowest reported threshold of "
-     f"0.5 psu, so every influence area evaluates to exactly 0.000 km2 and the mixing-zone radius to "
-     f"0 m. These are grid-resolved quantities. They do not mean the increment never exceeds 0.5 psu "
-     f"anywhere: the near-field solution reaches {_nf_inc:.2f} psu above background at the impact "
-     f"footprint at slack water (section 4), on a scale of metres that a "
-     f"{C.FAR_FIELD['dx_m']:.0f} m cell cannot represent. The regional figures therefore bound the "
-     f"far-field footprint, and the near-field solution governs the immediate seabed impact.")
+_bg_ = C.AMBIENT["background_salinity_psu"]
+_asm_inc = far.max_seabed_salinity_psu.max() - _bg_
+_reg_inc = far.regional_max_seabed_salinity_psu.max() - _bg_
+_cell_km2 = RESULTS["regional_cell_km2"]
+_a05 = far.area_0p5psu_km2
+para(f"Which grid the metrics come from, and why it matters. The influence areas, diffusion "
+     f"distances and mixing-zone radius below are resolved on the {C.MEDIUM_FIELD['dx_m']:.0f} m "
+     f"assessment grid, not on the {C.FAR_FIELD['dx_m']:.0f} m regional grid. The reason is a "
+     f"detection limit: one regional cell covers {_cell_km2:.4f} km2, so the smallest footprint in "
+     f"the table ({far.scenario.iloc[0]}, {_a05.min():.4f} km2) spans only about "
+     f"{_a05.min() / _cell_km2:.1f} regional cells - far too few to form a contour. Averaging the "
+     f"plume over cells that coarse drags the increment peak down from {_asm_inc:.2f} psu to "
+     f"{_reg_inc:.2f} psu, below the lowest 0.5 psu contour, so every area on the regional grid "
+     f"collapses to exactly 0.000 km2. Those zeros are the resolution of the grid, not a property "
+     f"of the plume. On the "
+     f"{C.MEDIUM_FIELD['dx_m']:.0f} m grid the 0.5 psu contour resolves cleanly and the areas are "
+     f"{_a05.min():.4f}-{_a05.max():.4f} km2. Both are reported: the assessment grid gives the "
+     f"footprint, and the regional column shows what the coarser grid sees.")
+para(f"The 1.0 and 1.5 psu influence areas are 0.000 km2 for a different and genuine reason: the "
+     f"seabed increment peaks at {_asm_inc:.2f} psu on the assessment grid and so never reaches "
+     f"either contour. Those zeros are physical. The mixing-zone radius is 0 m on both grids, and "
+     f"that result is robust - the {C.THRESHOLDS['salinity_threshold_psu']} psu threshold requires "
+     f"an increment of {C.THRESHOLDS['salinity_threshold_psu'] - _bg_:.1f} psu, against a resolved "
+     f"peak of {_asm_inc:.2f} psu.")
 add_table_from_csv(f"{H.CSV_DIR}/D_influence_area_diffusion.csv",
-                   "Salinity-increment influence areas and diffusion distances per scenario. Areas are "
-                   "resolved on the regional grid; see the note above on what the zeros mean.")
+                   f"Salinity-increment influence areas, diffusion distances and mixing-zone radius "
+                   f"per scenario, resolved on the {C.MEDIUM_FIELD['dx_m']:.0f} m assessment grid. "
+                   f"The final column is the peak on the {C.FAR_FIELD['dx_m']:.0f} m regional grid, "
+                   f"which cannot resolve the footprint; see the note above.")
 
 # ===========================================================================
 # 7 DESIGN OPTIMISATION
@@ -584,20 +634,41 @@ add_section_figs("Data plots")
 # 10 CONCLUSIONS
 # ===========================================================================
 h1("11  Conclusions")
+_p2c = RESULTS.get("phase2_mz")
+_p2cw = _p2c.loc[_p2c.mixing_zone_radius_m.idxmax()] if _p2c is not None else None
+_thr = C.THRESHOLDS["salinity_threshold_psu"]
+_mzr = C.THRESHOLDS["mixing_zone_radius_m"]
 para("The UBDS solver provides a single, open, physically-validated framework spanning the "
      "near-, medium- and far-field dispersion of brine and other buoyant effluents. Applied to "
      "the Bahia Azul case study with fully documented, credible site-specific inputs, it "
-     f"demonstrates that the proposed inclined {C.DIFFUSER['n_ports_installed']}-port diffuser achieves effective initial "
-     "dilution and confines significant salinity increments and all trace impurities to within "
-     "the regulatory mixing zone, across all simulated discharge flows and tidal states.")
-para(f"One condition attaches to that conclusion. The {_site_dist:.0f} m outfall meets the "
-     f"{_CRIT} ppt intake-recirculation criterion for the phase-1 RO concentrate at every distance "
-     f"screened (worst cell {_ro_worst:.3f} ppt) but no siting inside "
-     f"{_cav_min_ok if _cav_min_ok else -1:.0f} m meets it for the phase-2 saturated cavern brine, "
-     f"which therefore requires a siting of at least "
-     f"{_cav_min_ok if _cav_min_ok else -1:.0f} m. The seabed-salinity and water-quality conclusions "
-     "above already use the cavern brine as the worst case; the recirculation conclusion is the "
-     "one place where the two phases diverge, and it is stated separately for that reason.")
+     f"demonstrates that the proposed inclined {C.DIFFUSER['n_ports_installed']}-port diffuser "
+     f"achieves effective initial dilution and, FOR THE PHASE-1 RO CONCENTRATE, confines "
+     f"significant salinity increments and all trace impurities to within the regulatory mixing "
+     f"zone across all simulated discharge flows and tidal states. The phase-1 discharge is the "
+     f"discharge the plant is being built for, and it complies on every metric assessed.")
+para(f"The phase-2 saturated cavern brine does not. Two independent regulatory criteria fail for "
+     f"it, and they must not be read as caveats to a passing result:")
+if _p2cw is not None and _p2cw.compliant == "No":
+    para(f"(1) Mixing zone. Discharged at full flow through the same diffuser, the 250 psu cavern "
+         f"source exceeds the {_thr} psu seabed threshold out to "
+         f"{_p2cw.mixing_zone_radius_m:.0f} m from the diffuser over "
+         f"{_p2cw.area_above_threshold_km2:.3f} km2 of seabed - about "
+         f"{_p2cw.mixing_zone_radius_m / _mzr:.0f} times the {_mzr:.0f} m regulatory mixing zone "
+         f"(section 5). The 0 m mixing-zone radius reported for the base case is an RO-concentrate "
+         f"result and does not apply to this source.")
+para(f"(2) Intake recirculation. The {_site_dist:.0f} m outfall meets the {_CRIT} ppt criterion "
+     f"for the phase-1 RO concentrate at every distance screened (worst cell {_ro_worst:.3f} ppt), "
+     f"but no siting inside {_cav_min_ok if _cav_min_ok else -1:.0f} m meets it for the cavern "
+     f"brine (section 8).")
+para("Recommendation. Proceed with the inclined "
+     f"{C.DIFFUSER['n_ports_installed']}-port {C.DIFFUSER['port_angle_deg']:.0f} degree diffuser "
+     f"for the phase-1 RO discharge. Do NOT commit the phase-2 saturated-cavern stream to this "
+     f"diffuser on the strength of this study: as modelled it breaches the mixing zone by an order "
+     f"of magnitude and fails the recirculation criterion. Accommodating it would require a "
+     f"materially different discharge arrangement - substantially more ports, a longer diffuser, "
+     f"pre-dilution of the cavern stream, or a lower cavern discharge rate - together with an "
+     f"outfall at least {_cav_min_ok if _cav_min_ok else -1:.0f} m offshore. That redesign is "
+     f"outside the scope of this study and should be assessed on its own terms.")
 
 # ===========================================================================
 # APPENDIX - OUTPUT INVENTORY

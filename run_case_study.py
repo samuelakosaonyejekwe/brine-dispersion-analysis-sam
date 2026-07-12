@@ -860,6 +860,54 @@ def part_C_medium(hydro_all):
                              env_sn=env_sn, X=X, Y=Y, mean_depth=mean_depth,
                              nf_impact=out9n["nf"].impact_salinity)
     RESULTS["_med_grid_h"] = g.h
+
+    # --- phase-2 mixing-zone compliance -------------------------------------
+    # The mixing-zone radius had only ever been evaluated for the RO concentrate,
+    # whose seabed increment is far below the threshold. The saturated cavern brine
+    # is a 250 psu source: it lands on the bed at 41-51 psu in the near field, and
+    # its medium-field envelope peaks well above the 38.5 psu threshold. Evaluating
+    # the same regulatory metric on the cavern envelope is the check the study was
+    # missing, and it is the one the phase-2 provision turns on.
+    thr = C.THRESHOLDS["salinity_threshold_psu"]
+    crows = []
+    for lbl, env in [("neap", out9n["env"][0]), ("spring", out9s["env"][0]),
+                     ("spring-neap envelope", env_sn)]:
+        rad = metrics.mixing_zone_radius(env, X[0], Y[:, 0], ox, thr)
+        crows.append(dict(tide=lbl,
+                          peak_seabed_salinity_psu=round(float(env.max()), 2),
+                          mixing_zone_radius_m=round(rad, 0),
+                          area_above_threshold_km2=round(
+                              metrics.area_above(env, g.dx, g.dy, thr) / 1e6, 4),
+                          regulatory_radius_m=mz,
+                          compliant="Yes" if rad <= mz else "No"))
+    dfc = pd.DataFrame(crows)
+    H.write_csv(dfc, "C_phase2_mixing_zone.csv",
+                f"Phase-2 saturated cavern brine at full flow: extent of the {thr} psu threshold "
+                f"exceedance on the seabed, against the {mz:.0f} m regulatory mixing zone.", sec)
+    RESULTS["phase2_mz"] = dfc
+
+    worst = dfc.loc[dfc.mixing_zone_radius_m.idxmax()]
+    fig, ax = viz.new_ax((7.5, 5),
+        f"Phase-2 cavern brine: {thr} psu exceedance vs the {mz:.0f} m mixing zone",
+        "Tidal state", f"Radius of the {thr} psu contour from the diffuser (m)")
+    xs = np.arange(len(dfc))
+    ax.bar(xs, dfc.mixing_zone_radius_m, width=0.55, color="#C1121F",
+           edgecolor="#5c0a12", linewidth=1.2, zorder=3)
+    for x, v in zip(xs, dfc.mixing_zone_radius_m):
+        ax.annotate(f"{v:.0f} m", (x, v), xytext=(0, 4), textcoords="offset points",
+                    ha="center", va="bottom", fontsize=11, fontweight="bold",
+                    color=viz.INK, zorder=4)
+    ax.axhline(mz, color="#0072B2", ls="--", lw=2.6, zorder=2,
+               label=f"{mz:.0f} m regulatory mixing zone")
+    ax.set_xticks(xs); ax.set_xticklabels(dfc.tide)
+    ax.set_ylim(0, float(dfc.mixing_zone_radius_m.max()) * 1.25)
+    ax.legend(fontsize=9, loc="upper left", framealpha=1.0)
+    H.register("figure", viz.save(fig, f"{H.FIG_DIR}/C_phase2_mixing_zone.png"),
+               f"Phase-2 saturated cavern brine at full flow: the {thr} psu seabed threshold is "
+               f"exceeded out to {worst.mixing_zone_radius_m:.0f} m from the diffuser on the "
+               f"{worst.tide} envelope, over {worst.area_above_threshold_km2:.3f} km2 of seabed - "
+               f"far outside the {mz:.0f} m regulatory mixing zone. The RO concentrate of phase 1 "
+               f"does not exceed the threshold anywhere.", sec)
     return dict(out9n=out9n, out9s=out9s, sens=sens)
 
 
@@ -909,16 +957,28 @@ def part_D_far(hydro_all):
         "D_far_cavern.png", sec, ox, mz=mz,
         zoom_box=([ox[0]-1150, ox[0]+2600], [ox[1]-2200, ox[1]+2200]))
 
-    # --- influence-area & diffusion-distance table (PDF2 Table 2 style) -----
-    g = far_runs["S3"]["grid"]; Sa = C.AMBIENT["background_salinity_psu"]
+    # --- influence-area & diffusion-distance table ---------------------------
+    # These metrics are resolved on the 25 m medium grid, not the 60 m regional
+    # one. A 60 m cell is 3600 m2 - larger than the whole S1 footprint - so the
+    # regional grid averages the increment peak down below the lowest (0.5 psu)
+    # contour and every area collapses to exactly zero. Those zeros are a
+    # detection limit, not a result. The 25 m grid resolves the contour (9-87
+    # cells per scenario), so the assessment metrics are computed there and the
+    # regional grid is reported alongside as the coarser regional check.
+    Sa = C.AMBIENT["background_salinity_psu"]
+    gf_far = far_runs["S3"]["grid"]
+    med_n = hydro_all["med_n"]
+    ox_med = C.MEDIUM_FIELD["outfall_xy"]
     rows = []
     for sc in C.SCENARIOS:
-        env = far_runs[sc["id"]]["env"][0]
-        areas = metrics.increment_areas(env, Sa, g.dx, g.dy)
-        par, tra = metrics.diffusion_distance(env, far_runs[sc["id"]]["X"][0],
-                    far_runs[sc["id"]]["Y"][:, 0], ox, Sa, g.dx, g.dy, 0.5)
-        mzr = metrics.mixing_zone_radius(env, far_runs[sc["id"]]["X"][0],
-                    far_runs[sc["id"]]["Y"][:, 0], ox, C.THRESHOLDS["salinity_threshold_psu"])
+        m = run_transport_case("medium", med_n, 9, BRINE_RO, sc, "spring_neap", "neap")
+        env_m, gm_ = m["env"][0], m["grid"]
+        areas = metrics.increment_areas(env_m, Sa, gm_.dx, gm_.dy)
+        par, tra = metrics.diffusion_distance(env_m, m["X"][0], m["Y"][:, 0], ox_med,
+                                              Sa, gm_.dx, gm_.dy, 0.5)
+        mzr = metrics.mixing_zone_radius(env_m, m["X"][0], m["Y"][:, 0], ox_med,
+                                         C.THRESHOLDS["salinity_threshold_psu"])
+        env_f = far_runs[sc["id"]]["env"][0]
         rows.append(dict(scenario=sc["id"], flow_m3hr=sc["flow_m3hr"],
                          area_0p5psu_km2=round(areas[0.5], 4),
                          area_1p0psu_km2=round(areas[1.0], 4),
@@ -926,11 +986,17 @@ def part_D_far(hydro_all):
                          diff_dist_parallel_m=round(par, 0),
                          diff_dist_transverse_m=round(tra, 0),
                          mixing_zone_radius_m=round(mzr, 0),
-                         max_seabed_salinity_psu=round(float(env.max()), 2)))
+                         max_seabed_salinity_psu=round(float(env_m.max()), 2),
+                         regional_max_seabed_salinity_psu=round(float(env_f.max()), 2)))
     dft = pd.DataFrame(rows)
     H.write_csv(dft, "D_influence_area_diffusion.csv",
-                "Influence areas of salinity increments and diffusion distances per flow scenario (far field).", sec)
+                "Influence areas of salinity increments, diffusion distances and mixing-zone "
+                f"radius per flow scenario, resolved on the {C.MEDIUM_FIELD['dx_m']:.0f} m "
+                f"assessment grid. The final column is the peak on the coarser "
+                f"{C.FAR_FIELD['dx_m']:.0f} m regional grid, whose cell "
+                f"({gf_far.dx*gf_far.dy/1e6:.4f} km2) is too large to resolve the footprint.", sec)
     RESULTS["far_table"] = dft
+    RESULTS["regional_cell_km2"] = gf_far.dx * gf_far.dy / 1e6
     RESULTS["far"] = dict(env_S3=far_runs["S3"]["env"][0], X=far_runs["S3"]["X"],
                           Y=far_runs["S3"]["Y"])
     return far_runs
@@ -1143,48 +1209,64 @@ def part_G_csv_plots():
 
     # increment area vs flow
     dft = RESULTS["far_table"]
-    _areas = ["area_0p5psu_km2", "area_1p0psu_km2", "area_1p5psu_km2"]
-    _all_zero = float(dft[_areas].max().max()) == 0.0
     _bg = C.AMBIENT["background_salinity_psu"]
     _inc = dft.max_seabed_salinity_psu - _bg
-    # Plotting three all-zero area curves produced three coincident lines on the axis:
-    # no information, and legend swatches that cannot be told apart.  Plot the quantity
-    # that explains the zeros instead - the peak seabed increment against the contour
-    # thresholds it never reaches.
-    fig, ax = viz.new_ax((7.5, 5),
-                         "Peak seabed salinity increment vs discharge flow "
-                         "(why every influence area is 0.000 km2)",
-                         "Brine discharge (m3/hr)", "Peak seabed increment above ambient (psu)")
+    _inc_reg = dft.regional_max_seabed_salinity_psu - _bg
+    _cell = RESULTS["regional_cell_km2"]
+    # Left: the influence area itself, which is what the section is about and which
+    # resolves on the 25 m assessment grid.  Right: the peak increment against the
+    # three contour thresholds, which is what explains why the 1.0 and 1.5 psu areas
+    # are (genuinely) zero while the 0.5 psu one is not.
+    fig, (axL, axR) = plt.subplots(1, 2, figsize=(12.5, 5))
     xs = np.arange(len(dft))
-    bars = ax.bar(xs, _inc, width=0.55, color="#0072B2", edgecolor="#0b2545",
-                  linewidth=1.2, zorder=3)
-    # Values sit inside the bar tops.  Above them, the tallest (+0.39 psu) collided
-    # with the 0.5 psu threshold line, which is the one line it must be seen to clear.
-    for x, v, sid in zip(xs, _inc, dft.scenario):
-        ax.annotate(f"+{v:.2f} psu", (x, v), xytext=(0, -8), textcoords="offset points",
-                    ha="center", va="top", fontsize=11, fontweight="bold",
-                    color="white", zorder=4)
-    # Distinct hue AND dash pattern per threshold: three dashed lines in similar blues
-    # and greens were not separable on a projector.
+    xlab = [f"{sid}\n{int(f)} m3/hr" for sid, f in zip(dft.scenario, dft.flow_m3hr)]
+
+    axL.bar(xs, dft.area_0p5psu_km2, width=0.55, color="#0072B2",
+            edgecolor="#0b2545", linewidth=1.2, zorder=3)
+    for x, v in zip(xs, dft.area_0p5psu_km2):
+        axL.annotate(f"{v:.4f} km2", (x, v), xytext=(0, 4), textcoords="offset points",
+                     ha="center", va="bottom", fontsize=10, fontweight="bold",
+                     color=viz.INK, zorder=4)
+    # The regional cell is the detection floor: anything below this line is a grid
+    # artifact on the 60 m grid, which is exactly why that grid reported 0.000 km2.
+    axL.axhline(_cell, color="#C1121F", ls="--", lw=2.2, zorder=2,
+                label=f"one {C.FAR_FIELD['dx_m']:.0f} m regional cell = {_cell:.4f} km2\n"
+                      f"(detection floor of the regional grid)")
+    axL.set_title(f"0.5 psu influence area vs discharge flow\n"
+                  f"(resolved on the {C.MEDIUM_FIELD['dx_m']:.0f} m assessment grid)")
+    axL.set_xlabel("Brine discharge (m3/hr)")
+    axL.set_ylabel("0.5 psu influence area (km2)")
+    axL.set_xticks(xs); axL.set_xticklabels(xlab)
+    axL.set_ylim(0, max(0.065, float(dft.area_0p5psu_km2.max()) * 1.35))
+    axL.legend(fontsize=8.5, loc="upper left", framealpha=1.0)
+
+    axR.bar(xs, _inc, width=0.55, color="#0072B2", edgecolor="#0b2545",
+            linewidth=1.2, zorder=3, label=f"{C.MEDIUM_FIELD['dx_m']:.0f} m assessment grid")
+    axR.bar(xs, _inc_reg, width=0.28, color="#9ecae1", edgecolor="#0b2545",
+            linewidth=1.0, zorder=4, label=f"{C.FAR_FIELD['dx_m']:.0f} m regional grid")
+    for x, v in zip(xs, _inc):
+        axR.annotate(f"+{v:.2f}", (x, v), xytext=(0, -8), textcoords="offset points",
+                     ha="center", va="top", fontsize=10, fontweight="bold",
+                     color="white", zorder=5)
     for thr, col, ls in [(0.5, "#E69F00", "--"), (1.0, "#009E73", "-."), (1.5, "#C1121F", ":")]:
-        ax.axhline(thr, color=col, ls=ls, lw=2.6, zorder=2,
-                   label=f"{thr:.1f} psu contour - area 0.000 km2")
-    ax.set_xticks(xs)
-    ax.set_xticklabels([f"{sid}\n{int(f)} m3/hr" for sid, f in zip(dft.scenario, dft.flow_m3hr)])
-    # Headroom above the 1.5 psu line for the legend; the note sits in the clear band
-    # between the 0.5 and 1.0 psu contours.
-    ax.set_ylim(0, 2.0)
-    ax.legend(fontsize=9, loc="upper right", framealpha=1.0)
-    if _all_zero:
-        ax.annotate(f"On the {C.FAR_FIELD['dx_m']:.0f} m regional grid the seabed increment never "
-                    f"reaches the lowest\n0.5 psu contour, so all three influence areas are exactly "
-                    f"0.000 km2.\nThe near-field impact footprint does exceed it (see section 4).",
-                    xy=(0.5, 0.36), xycoords="axes fraction", ha="center", va="center",
-                    fontsize=9, color=viz.INK)
+        axR.axhline(thr, color=col, ls=ls, lw=2.6, zorder=2, label=f"{thr:.1f} psu contour")
+    axR.set_title("Peak seabed increment vs the contour thresholds\n"
+                  "(the 1.0 and 1.5 psu contours are never reached)")
+    axR.set_xlabel("Brine discharge (m3/hr)")
+    axR.set_ylabel("Peak seabed increment above ambient (psu)")
+    axR.set_xticks(xs); axR.set_xticklabels(xlab)
+    axR.set_ylim(0, 2.0)
+    axR.legend(fontsize=8.5, loc="upper right", framealpha=1.0, ncol=1)
+    fig.tight_layout()
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/G_area_vs_flow.png"),
-               "Peak seabed salinity increment by discharge scenario, against the 0.5, 1.0 and "
-               f"1.5 psu contour thresholds. The increment peaks at {_inc.max():.2f} psu, so every "
-               "influence area is 0.000 km2; the zeros are grid-resolved, not absolute.", sec)
+               f"Left: the 0.5 psu influence area by discharge scenario, resolved on the "
+               f"{C.MEDIUM_FIELD['dx_m']:.0f} m assessment grid, against the "
+               f"{C.FAR_FIELD['dx_m']:.0f} m regional grid's {_cell:.4f} km2 detection floor - the "
+               f"S1 footprint is smaller than one regional cell, which is why that grid reports "
+               f"0.000 km2. Right: the peak seabed increment reaches {_inc.max():.2f} psu on the "
+               f"assessment grid but only {_inc_reg.max():.2f} psu once averaged onto the regional "
+               f"grid; it never reaches the 1.0 or 1.5 psu contour, so those areas are genuinely "
+               f"zero.", sec)
 
     # validation skill bar
     sk = RESULTS["skill"]

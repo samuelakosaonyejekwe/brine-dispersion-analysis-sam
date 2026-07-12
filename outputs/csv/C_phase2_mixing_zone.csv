@@ -1,0 +1,4 @@
+tide,peak_seabed_salinity_psu,mixing_zone_radius_m,area_above_threshold_km2,regulatory_radius_m,compliant
+neap,44.27,1213.0,0.4844,100.0,No
+spring,42.48,738.0,0.2575,100.0,No
+spring-neap envelope,44.27,1213.0,0.4844,100.0,No
