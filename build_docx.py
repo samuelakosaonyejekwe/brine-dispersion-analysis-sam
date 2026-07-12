@@ -448,10 +448,13 @@ _ro = _rc[_rc.brine == "RO concentrate"]
 _cav = _rc[_rc.brine != "RO concentrate"]
 _ro_worst = _ro.rise_max_ppt.max()
 _cav_worst = _cav.rise_max_ppt.max()
-_rec_dist = 1200
-_cav_at_rec = _cav[(_cav.outfall_dist_m == _rec_dist)].rise_max_ppt.max()
+# The siting distance is the one the case is actually run at, not a separate figure:
+# AMBIENT["offshore_distance_m"] places the diffuser in every medium- and far-field run.
+_site_dist = C.AMBIENT["offshore_distance_m"]
 _cav_ok = sorted(d for d in _cav.outfall_dist_m.unique()
                  if _cav[_cav.outfall_dist_m == d].rise_max_ppt.max() <= _CRIT)
+_cav_min_ok = _cav_ok[0] if _cav_ok else None
+_tested = sorted(_rc.outfall_dist_m.unique())
 para("Following the desalination-siting methodology, the salinity rise at the plant intake "
      "was assessed as a function of outfall distance from shore under steady northward, "
      f"southward and weak-southward currents, for both discharges. The criterion is a salinity "
@@ -472,22 +475,24 @@ add_table_from_csv(f"{H.CSV_DIR}/H_table1B_weak.csv",
                    "Rise in salinity at intake above ambient - weak southward current 0.05 m/s, both brines.")
 add_table_from_csv(f"{H.CSV_DIR}/H_table1C_northward.csv",
                    "Rise in salinity at intake above ambient - northward current 0.25 m/s, both brines.")
-para(f"Result. For the RO concentrate the criterion is met everywhere: the worst cell over all "
-     f"currents and distances is {_ro_worst:.3f} ppt, and at the recommended {_rec_dist} m siting "
-     f"the rise is {_ro[_ro.outfall_dist_m == _rec_dist].rise_max_ppt.max():.3f} ppt. For the "
-     f"phase-2 saturated cavern brine the criterion is NOT met at {_rec_dist} m, where the peak "
-     f"intake rise reaches {_cav_at_rec:.3f} ppt, nor at any shorter distance tested (worst case "
-     f"{_cav_worst:.3f} ppt at the closest siting under the weak southward current). It is met from "
-     f"{_cav_ok[0] if _cav_ok else -1:.0f} m offshore ("
-     f"{_cav[_cav.outfall_dist_m == (_cav_ok[0] if _cav_ok else 0)].rise_max_ppt.max():.3f} ppt).")
-para(f"Consequence for the design. The {_rec_dist} m outfall recommended in section 7 satisfies the "
-     "recirculation criterion for the phase-1 RO discharge, which is the discharge the plant is "
-     "being built for. It does not satisfy it for the phase-2 cavern brine. If the cavern stream is "
+para(f"Result. For the RO concentrate the criterion is met at every distance tested: the worst cell "
+     f"over all currents and distances is {_ro_worst:.3f} ppt, at the closest {_tested[0]:.0f} m "
+     f"siting under the weak southward current. The {_site_dist:.0f} m siting modelled in this "
+     f"study therefore clears the criterion, as does every distance from {_tested[0]:.0f} to "
+     f"{_tested[-1]:.0f} m. For the phase-2 saturated cavern brine the criterion is NOT met at any "
+     f"distance below {_cav_min_ok if _cav_min_ok else -1:.0f} m (worst case {_cav_worst:.3f} ppt "
+     f"at the closest siting under the weak southward current). It is first met at "
+     f"{_cav_min_ok if _cav_min_ok else -1:.0f} m offshore ("
+     f"{_cav[_cav.outfall_dist_m == (_cav_min_ok or 0)].rise_max_ppt.max():.3f} ppt).")
+para(f"Consequence for the design. The {_site_dist:.0f} m outfall modelled in this study satisfies "
+     "the recirculation criterion for the phase-1 RO discharge, which is the discharge the plant is "
+     "being built for; so does every distance tested, so recirculation does not constrain the "
+     "phase-1 siting. It does not satisfy it for the phase-2 cavern brine. If the cavern stream is "
      "committed, the outfall must be moved to at least "
-     f"{_cav_ok[0] if _cav_ok else -1:.0f} m, or the recirculation criterion re-examined against the "
-     "intermittency of that stream. This is a screening result on a 50 m grid under a steady "
-     "current and is adequate to rank distances and to test the threshold; it is not a basis for "
-     "fixing a siting distance to the nearest 200 m without a tidally-resolved run.")
+     f"{_cav_min_ok if _cav_min_ok else -1:.0f} m, or the recirculation criterion re-examined "
+     "against the intermittency of that stream. This is a screening result on a 50 m grid under a "
+     "steady current and is adequate to rank distances and to test the threshold; it is not a basis "
+     "for fixing a siting distance to the nearest 200 m without a tidally-resolved run.")
 add_section_figs("Outfall siting & recirculation")
 
 # ===========================================================================
@@ -585,11 +590,12 @@ para("The UBDS solver provides a single, open, physically-validated framework sp
      f"demonstrates that the proposed inclined {C.DIFFUSER['n_ports_installed']}-port diffuser achieves effective initial "
      "dilution and confines significant salinity increments and all trace impurities to within "
      "the regulatory mixing zone, across all simulated discharge flows and tidal states.")
-para(f"One condition attaches to that conclusion. The {_rec_dist} m outfall meets the "
-     f"{_CRIT} ppt intake-recirculation criterion for the phase-1 RO concentrate "
-     f"({_ro[_ro.outfall_dist_m == _rec_dist].rise_max_ppt.max():.3f} ppt) but not for the phase-2 "
-     f"saturated cavern brine ({_cav_at_rec:.3f} ppt), which requires a siting of at least "
-     f"{_cav_ok[0] if _cav_ok else -1:.0f} m. The seabed-salinity and water-quality conclusions "
+para(f"One condition attaches to that conclusion. The {_site_dist:.0f} m outfall meets the "
+     f"{_CRIT} ppt intake-recirculation criterion for the phase-1 RO concentrate at every distance "
+     f"screened (worst cell {_ro_worst:.3f} ppt) but no siting inside "
+     f"{_cav_min_ok if _cav_min_ok else -1:.0f} m meets it for the phase-2 saturated cavern brine, "
+     f"which therefore requires a siting of at least "
+     f"{_cav_min_ok if _cav_min_ok else -1:.0f} m. The seabed-salinity and water-quality conclusions "
      "above already use the cavern brine as the worst case; the recirculation conclusion is the "
      "one place where the two phases diverge, and it is stated separately for that reason.")
 
