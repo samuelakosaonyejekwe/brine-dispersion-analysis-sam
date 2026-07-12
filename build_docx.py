@@ -441,6 +441,42 @@ if _p2 is not None:
         add_table_from_csv(f"{H.CSV_DIR}/C_phase2_mixing_zone.csv",
                            f"Phase-2 saturated cavern brine at full flow: extent of the {_thr} psu "
                            f"seabed exceedance against the {_mzr:.0f} m regulatory mixing zone.")
+
+        # Throttling the cavern stream is the obvious mitigation, so it is tested
+        # rather than assumed. It fails, and the reason is the useful part.
+        _pf = RESULTS.get("phase2_flow")
+        _dreq = RESULTS.get("phase2_dilution_required")
+        if _pf is not None:
+            _lo = _pf.loc[_pf.per_port_m3hr.idxmin()]
+            _s1 = _pf[_pf.case == "S1"].iloc[0]
+            para(f"Can the cavern stream simply be throttled? No, and the reason matters. Reducing "
+                 f"the discharge is the obvious mitigation, so it was tested across flows from "
+                 f"{_pf.flow_m3hr.max():.0f} down to {_pf.flow_m3hr.min():.0f} m3/hr and across port "
+                 f"counts. Every case exceeds the threshold, and the low-flow cases are WORSE, not "
+                 f"better: cutting the per-port flow from {_s1.per_port_m3hr:.0f} to "
+                 f"{_lo.per_port_m3hr:.0f} m3/hr raises the peak seabed salinity from "
+                 f"{_s1.peak_seabed_salinity_psu:.2f} to {_lo.peak_seabed_salinity_psu:.2f} psu. "
+                 f"Near-field dilution is driven by the exit momentum of the jet, so a lower "
+                 f"per-port flow means a lower exit velocity, a lower Froude number and less "
+                 f"entrainment. Throttling attacks the wrong variable.")
+            _S_cav = C.BRINE["cavern_salinity_psu"]
+            _S_ro = C.BRINE["ro_salinity_psu"]
+            _bg_ = C.AMBIENT["background_salinity_psu"]
+            para(f"The binding constraint is dilution, not load, and it can be stated in one line. "
+                 f"To land a {_S_cav:.0f} psu source on the seabed below the {_thr} psu threshold "
+                 f"requires a near-field dilution of at least ({_S_cav:.0f} - {_bg_}) / "
+                 f"({_thr} - {_bg_}) = about "
+                 f"{_dreq:.0f}:1. The diffuser achieves 14-50:1 for the cavern brine at every flow "
+                 f"and tidal state assessed - short by a factor of two to seven. For comparison the "
+                 f"RO concentrate needs only about "
+                 f"{(_S_ro - _bg_) / (_thr - _bg_):.0f}:1 and receives 58-186:1, which is why "
+                 f"phase 1 passes with so much room. No operating point of this diffuser closes that gap: "
+                 f"phase 2 needs a fundamentally higher-dilution discharge (much higher exit "
+                 f"velocity through smaller or more numerous ports, or pre-dilution of the cavern "
+                 f"stream with seawater), or it needs a different outfall.")
+            add_table_from_csv(f"{H.CSV_DIR}/C_phase2_flow_sensitivity.csv",
+                               f"Phase-2 cavern brine: seabed compliance against discharge flow and "
+                               f"port count. No flow complies, and lower per-port flows are worse.")
 add_section_figs("Medium-field dispersion")
 
 # ===========================================================================
@@ -660,15 +696,23 @@ para(f"(2) Intake recirculation. The {_site_dist:.0f} m outfall meets the {_CRIT
      f"for the phase-1 RO concentrate at every distance screened (worst cell {_ro_worst:.3f} ppt), "
      f"but no siting inside {_cav_min_ok if _cav_min_ok else -1:.0f} m meets it for the cavern "
      f"brine (section 8).")
+_dreq_c = RESULTS.get("phase2_dilution_required")
 para("Recommendation. Proceed with the inclined "
      f"{C.DIFFUSER['n_ports_installed']}-port {C.DIFFUSER['port_angle_deg']:.0f} degree diffuser "
      f"for the phase-1 RO discharge. Do NOT commit the phase-2 saturated-cavern stream to this "
-     f"diffuser on the strength of this study: as modelled it breaches the mixing zone by an order "
-     f"of magnitude and fails the recirculation criterion. Accommodating it would require a "
-     f"materially different discharge arrangement - substantially more ports, a longer diffuser, "
-     f"pre-dilution of the cavern stream, or a lower cavern discharge rate - together with an "
-     f"outfall at least {_cav_min_ok if _cav_min_ok else -1:.0f} m offshore. That redesign is "
-     f"outside the scope of this study and should be assessed on its own terms.")
+     f"diffuser: as modelled it breaches the mixing zone by an order of magnitude and fails the "
+     f"recirculation criterion, and neither can be operated away. Throttling the cavern flow was "
+     f"tested and makes the seabed salinity worse, because near-field dilution is set by exit "
+     f"momentum and a lower per-port flow entrains less. "
+     + (f"The constraint is dilution: a {C.BRINE['cavern_salinity_psu']:.0f} psu source needs about "
+        f"{_dreq_c:.0f}:1 near-field dilution to reach the {C.THRESHOLDS['salinity_threshold_psu']} "
+        f"psu threshold, and this diffuser delivers 14-50:1 at every operating point assessed. "
+        if _dreq_c else "")
+     + f"Accommodating phase 2 therefore requires a fundamentally higher-dilution discharge - much "
+       f"higher exit velocity through smaller or more numerous ports, or pre-dilution of the cavern "
+       f"stream with seawater - together with an outfall at least "
+       f"{_cav_min_ok if _cav_min_ok else -1:.0f} m offshore for recirculation. That redesign is "
+       f"outside the scope of this study and should be assessed on its own terms.")
 
 # ===========================================================================
 # APPENDIX - OUTPUT INVENTORY

@@ -1,0 +1,7 @@
+case,flow_m3hr,n_ports,per_port_m3hr,peak_seabed_salinity_psu,mixing_zone_radius_m,area_above_threshold_km2,compliant
+S3 (full flow),1200,4,300.0,44.27,1213.0,0.4844,No
+S2,700,2,350.0,43.85,489.0,0.1469,No
+S1,300,1,300.0,43.95,363.0,0.0813,No
+half S1,150,1,150.0,48.76,340.0,0.07,No
+quarter S1,75,1,75.0,52.42,438.0,0.11,No
+"S1 flow, 4 ports",300,4,75.0,52.42,1241.0,0.5194,No

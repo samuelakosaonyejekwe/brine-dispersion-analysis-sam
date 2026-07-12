@@ -886,6 +886,67 @@ def part_C_medium(hydro_all):
                 f"exceedance on the seabed, against the {mz:.0f} m regulatory mixing zone.", sec)
     RESULTS["phase2_mz"] = dfc
 
+    # --- is there a cavern flow that DOES comply? ---------------------------
+    # The obvious mitigation is to throttle the cavern stream, so test it rather
+    # than assume it. It does not work, and the reason is physical: near-field
+    # dilution is driven by exit momentum, so cutting the per-port flow lowers the
+    # exit velocity and the Froude number and therefore ENTRAINS LESS. The seabed
+    # salinity gets worse, not better. The binding constraint is dilution, not load.
+    Sa = C.AMBIENT["background_salinity_psu"]
+    d_req = (BRINE_CAVERN[0] - Sa) / (thr - Sa)     # dilution needed to reach the threshold
+    frows = []
+    for lbl, flow, nports in [("S3 (full flow)", 1200, 4), ("S2", 700, 2), ("S1", 300, 1),
+                              ("half S1", 150, 1), ("quarter S1", 75, 1),
+                              ("S1 flow, 4 ports", 300, 4)]:
+        sc_ = dict(id=lbl, flow_m3hr=flow, n_ports=nports)
+        o = run_transport_case("medium", med_n, 9, BRINE_CAVERN, sc_, "spring_neap", "neap")
+        e, gg = o["env"][0], o["grid"]
+        rad = metrics.mixing_zone_radius(e, o["X"][0], o["Y"][:, 0], ox, thr)
+        frows.append(dict(case=lbl, flow_m3hr=flow, n_ports=nports,
+                          per_port_m3hr=round(flow / nports, 0),
+                          peak_seabed_salinity_psu=round(float(e.max()), 2),
+                          mixing_zone_radius_m=round(rad, 0),
+                          area_above_threshold_km2=round(
+                              metrics.area_above(e, gg.dx, gg.dy, thr) / 1e6, 4),
+                          compliant="Yes" if rad <= mz else "No"))
+    dff = pd.DataFrame(frows)
+    H.write_csv(dff, "C_phase2_flow_sensitivity.csv",
+                f"Phase-2 cavern brine: seabed compliance vs discharge flow and port count. No flow "
+                f"complies; reducing the per-port flow lowers the exit momentum and therefore the "
+                f"near-field dilution, so the peak seabed salinity rises. Landing a "
+                f"{BRINE_CAVERN[0]:.0f} psu source below {thr} psu requires a near-field dilution of "
+                f"about {d_req:.0f}:1; the diffuser achieves 14-50:1.", sec)
+    RESULTS["phase2_flow"] = dff
+    RESULTS["phase2_dilution_required"] = d_req
+
+    fig, ax = viz.new_ax((8.5, 5),
+        f"Phase-2 cavern brine: throttling the discharge does not help",
+        "Cavern discharge (m3/hr, ports shown)", "Peak seabed salinity (psu)")
+    xs = np.arange(len(dff))
+    ax.bar(xs, dff.peak_seabed_salinity_psu, width=0.55, color="#C1121F",
+           edgecolor="#5c0a12", linewidth=1.2, zorder=3)
+    for x, v, r in zip(xs, dff.peak_seabed_salinity_psu, dff.mixing_zone_radius_m):
+        ax.annotate(f"{v:.1f}\n{r:.0f} m", (x, v), xytext=(0, 4), textcoords="offset points",
+                    ha="center", va="bottom", fontsize=9, fontweight="bold", color=viz.INK, zorder=4)
+    ax.axhline(thr, color="#0072B2", ls="--", lw=2.6, zorder=2,
+               label=f"{thr} psu regulatory threshold")
+    ax.set_xticks(xs)
+    ax.set_xticklabels([f"{int(f)}\n{int(n)} port{'' if n == 1 else 's'}"
+                        for f, n in zip(dff.flow_m3hr, dff.n_ports)])
+    ax.set_ylim(36.0, float(dff.peak_seabed_salinity_psu.max()) * 1.12)
+    ax.legend(fontsize=9, loc="upper left", framealpha=1.0)
+    ax.annotate("Cutting the flow makes it WORSE: less exit momentum -> less entrainment.\n"
+                f"Landing {BRINE_CAVERN[0]:.0f} psu below {thr} psu needs ~{d_req:.0f}:1 dilution; "
+                f"this diffuser gives 14-50:1.",
+                xy=(0.5, 0.06), xycoords="axes fraction", ha="center", va="bottom",
+                fontsize=9, color=viz.INK)
+    H.register("figure", viz.save(fig, f"{H.FIG_DIR}/C_phase2_flow_sensitivity.png"),
+               f"Phase-2 cavern brine: peak seabed salinity and {thr} psu mixing-zone radius against "
+               f"discharge flow and port count. Every case exceeds the threshold, and reducing the "
+               f"per-port flow makes the peak worse because near-field dilution is driven by exit "
+               f"momentum. The constraint is dilution, not load: a {BRINE_CAVERN[0]:.0f} psu source "
+               f"needs ~{d_req:.0f}:1 to reach {thr} psu and the diffuser delivers 14-50:1.", sec)
+
     worst = dfc.loc[dfc.mixing_zone_radius_m.idxmax()]
     fig, ax = viz.new_ax((7.5, 5),
         f"Phase-2 cavern brine: {thr} psu exceedance vs the {mz:.0f} m mixing zone",
