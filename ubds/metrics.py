@@ -69,6 +69,34 @@ def mixing_zone_radius(salinity_env, xc, yc, source_xy, threshold=36.0):
     return float(r.max())
 
 
+def boundary_margin_cells(field2d, threshold):
+    """
+    Smallest gap, in cells, between the region above ``threshold`` and the
+    domain edge.
+
+    The transport model holds every edge cell at ambient salinity (an open
+    "flushing" boundary).  That is the right condition for a plume that decays
+    well inside the domain, but it actively suppresses one that reaches the
+    edge: the contour cannot cross a boundary pinned at background.  So any
+    threshold area or radius measured from a field whose hot region approaches
+    the edge is a LOWER BOUND set by the domain, not a converged result.
+
+    Returns np.inf when nothing exceeds the threshold (nothing to truncate).
+    """
+    mask = field2d >= threshold
+    if not mask.any():
+        return np.inf
+    js, iss = np.where(mask)
+    ny, nx = field2d.shape
+    return int(min(iss.min(), nx - 1 - iss.max(), js.min(), ny - 1 - js.max()))
+
+
+def is_domain_limited(field2d, threshold, min_margin_cells=10):
+    """True when the threshold contour is close enough to the edge that the
+    ambient-clamped boundary is holding it in.  See boundary_margin_cells."""
+    return boundary_margin_cells(field2d, threshold) < min_margin_cells
+
+
 def eqs_compliance(brine_conc_ugL, dilution, eqs_ugL, background_ugL=0.0):
     """
     Predicted receiving-water concentration after dilution and compliance

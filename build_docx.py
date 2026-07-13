@@ -192,6 +192,8 @@ if far is not None:
              f"small and reports 0.000 km2; see section 6)")
     _p2 = RESULTS.get("phase2_mz")
     _p2w = _p2.loc[_p2.mixing_zone_radius_m.idxmax()] if _p2 is not None else None
+    _MZ = C.THRESHOLDS["mixing_zone_radius_m"]
+    _blo, _bhi = RESULTS.get("phase2_radius_bracket", (0.0, 0.0))
     para(
      f"The medium- and far-field assessment confirms that, for the phase-1 RO concentrate at the "
      f"maximum discharge of {C.SCENARIOS[-1]['flow_m3hr']} m3/hr, {_area}, with "
@@ -201,12 +203,14 @@ if far is not None:
      f"impurities remain below their Environmental Quality Standards after dilution. "
      + (f"That compliance result does NOT extend to the phase-2 saturated cavern brine. At full "
         f"flow the 250 psu cavern source exceeds the "
-        f"{C.THRESHOLDS['salinity_threshold_psu']} psu seabed threshold out to "
-        f"{_p2w.mixing_zone_radius_m:.0f} m from the diffuser over "
-        f"{_p2w.area_above_threshold_km2:.3f} km2 of seabed - roughly "
-        f"{_p2w.mixing_zone_radius_m / C.THRESHOLDS['mixing_zone_radius_m']:.0f} times the "
-        f"{C.THRESHOLDS['mixing_zone_radius_m']:.0f} m regulatory mixing zone (section 5). "
-        f"Phase 2 is therefore not permissible on this diffuser as modelled. "
+        f"{C.THRESHOLDS['salinity_threshold_psu']} psu seabed threshold to at least {_blo:.0f} m "
+        f"from the diffuser on the 2.5 km assessment domain, and to at least {_bhi:.0f} m - "
+        f"{_bhi / _MZ:.0f} times the {_MZ:.0f} m regulatory mixing zone - on the 7.2 km regional "
+        f"domain (section 5). Both are lower bounds: the model holds each domain edge at the "
+        f"background salinity and this plume reaches both edges, so neither domain contains it "
+        f"and the true extent is larger than either figure. That uncertainty is in the SIZE of "
+        f"the breach, not in whether there is one. Phase 2 is not permissible on this diffuser "
+        f"as modelled. "
         if _p2w is not None and _p2w.compliant == "No" else "")
      + (f"The RO near-field dilutions above are extrapolated beyond the validated Froude "
         f"range (see section 4); the saturated-cavern-brine worst case, which lies inside "
@@ -309,6 +313,22 @@ para("Two nested structured-grid domains were configured: a high-resolution medi
      f"regional far-field domain ({C.FAR_FIELD['Lx_m']:.0f} x {C.FAR_FIELD['Ly_m']:.0f} m at "
      f"{C.FAR_FIELD['dx_m']:.0f} m, {C.FAR_FIELD['n_sigma_layers']} layers). The bathymetry "
      "deepens offshore and includes a southern headland whose lee generates a tidal eddy.")
+para("The two domains are windows onto one site, defined on a single set of absolute "
+     "coordinates: the same coastline, the same headland, island and shallow bank, and the "
+     f"same diffuser at {C.AMBIENT['offshore_distance_m']:.0f} m offshore in about "
+     f"{C.AMBIENT['outfall_depth_m']:.0f} m of water. The regional domain therefore contains "
+     "the medium-field one and can be used as a check on it, rather than being a second, "
+     "differently-shaped site that happens to carry the same name.")
+para("One consequence of the domain sizes has to be stated because it bounds a headline number. "
+     "The transport model holds every domain edge at the ambient background salinity - an open, "
+     "flushing boundary. For a plume that decays well inside the domain, which is the case for "
+     "the phase-1 RO concentrate at every flow and tide, this is exactly the right condition and "
+     "has no influence on the result. The phase-2 saturated cavern plume is different: its "
+     "38.5 psu contour runs out to within a few cells of the medium-field boundary, so that "
+     "boundary is actively holding the contour in. Every phase-2 threshold radius and area "
+     "measured on the 2.5 km assessment domain is therefore a LOWER BOUND set by the domain, not "
+     "a converged result, and it is reported as such throughout. The 7.2 km regional domain has "
+     "room for the plume to close and is reported alongside it as the upper end of the range.")
 add_section_figs("Hydrodynamics, mesh & calibration")
 add_table_from_csv(f"{H.CSV_DIR}/F_layer_scheme.csv",
                    "Sigma-layer schemes (% of water-column depth per layer).")
@@ -404,9 +424,32 @@ if ls:
          ("The peak is grid-converged in the vertical." if _converged else
           f"The peak salinity is NOT converged in the vertical: it continues to rise with layer "
           f"count, so the adopted 9-layer scheme under-predicts the 14-layer peak by "
-          f"{100*(_vals[-1]-_vals[1])/_vals[-1]:.1f}%. Peak seabed salinity in this section should "
-          f"therefore be read as a lower bound; the mixing-zone and area metrics, which depend on "
-          f"the salinity field away from the peak cell, are far less sensitive to layer count."))
+          f"{100*(_vals[-1]-_vals[1])/_vals[-1]:.1f}%."))
+    # The peak being layer-insensitive says nothing about the AREA, and the area is
+    # the regulatory quantity. It is in fact the more sensitive of the two by an
+    # order of magnitude, so it is reported rather than waved through.
+    _la = RESULTS.get("layer_sensitivity_area", {})
+    _lr = RESULTS.get("layer_sensitivity_radius", {})
+    if _la:
+        _av = [v for _, v in sorted(_la.items())]
+        _thr1 = C.THRESHOLDS["salinity_threshold_psu"]
+        _mz1 = C.THRESHOLDS["mixing_zone_radius_m"]
+        _spread = max(_av) / min(_av) if min(_av) > 0 else float("inf")
+        para(f"The peak is not the whole story, and the area is the metric that matters. The seabed "
+             f"area above the {_thr1} psu threshold is "
+             + ", ".join(f"{k}-layer = {v:.3f} km2" for k, v in sorted(_la.items()))
+             + f". That is a factor of {_spread:.1f} between the coarsest and the finest scheme, "
+               f"against under 1% variation in the peak - so the AREA is roughly two orders of "
+               f"magnitude more sensitive to layer count than the peak is, not less. It is not "
+               f"converged in the vertical, and it decreases as the vertical resolution improves, "
+               f"which means the adopted 9-layer scheme over-predicts the exceedance area relative "
+               f"to the 14-layer solution. "
+             + (f"The conclusion that phase 2 breaches the mixing zone is nevertheless robust to "
+                f"this: the {_thr1} psu radius is "
+                + ", ".join(f"{k}-layer = {v:.0f} m" for k, v in sorted(_lr.items()))
+                + f", so every vertical resolution tested puts it far outside the {_mz1:.0f} m "
+                  f"allowance. The magnitude of the exceedance is resolution-dependent; its "
+                  f"existence is not." if _lr else ""))
 
 # --- phase-2 mixing-zone compliance ----------------------------------------
 # The headline "mixing-zone radius = 0 m" is an RO-concentrate result. It was never
@@ -416,18 +459,36 @@ if _p2 is not None:
     _w = _p2.loc[_p2.mixing_zone_radius_m.idxmax()]
     _thr = C.THRESHOLDS["salinity_threshold_psu"]
     _mzr = C.THRESHOLDS["mixing_zone_radius_m"]
+    _env = _p2[_p2.tide == "spring-neap envelope"].iloc[0]
+    _reg = _p2[_p2.tide.str.startswith("regional")].iloc[0]
     if _w.compliant == "No":
         para(f"Phase-2 mixing-zone compliance: the threshold IS exceeded. The "
              f"{_thr} psu seabed threshold is a regulatory limit, and the mixing-zone radius "
              f"reported for the base case in section 6 is 0 m. That figure is computed on the RO "
              f"concentrate, whose seabed increment never approaches the threshold. It is not a "
              f"statement about the phase-2 source. Evaluated on the saturated-cavern envelope "
-             f"modelled in this section, the same metric gives a radius of "
-             f"{_w.mixing_zone_radius_m:.0f} m on the {_w.tide} case - about "
-             f"{_w.mixing_zone_radius_m / _mzr:.0f} times the {_mzr:.0f} m regulatory mixing zone - "
-             f"with {_w.area_above_threshold_km2:.3f} km2 of seabed above {_thr} psu. The cavern "
+             f"modelled in this section, the same metric gives a radius of at least "
+             f"{_env.mixing_zone_radius_m:.0f} m on the spring-neap envelope, with at least "
+             f"{_env.area_above_threshold_km2:.3f} km2 of seabed above {_thr} psu. The cavern "
              f"brine lands on the bed at 41-51 psu in the near field (section 4), so this outcome "
              f"is consistent with the near-field solution rather than a surprise from it.")
+        para(f"That medium-field figure is a lower bound, and the reason matters. The transport "
+             f"model holds every domain edge at the ambient background salinity, and this plume "
+             f"reaches to within {_env.edge_margin_cells:.0f} cells of the 2.5 km assessment-domain "
+             f"edge - so the boundary is clipping the contour rather than the physics closing it. "
+             f"Re-run on the 7.2 km regional domain, which is the same site with nearly three times "
+             f"the room, the same metric gives {_reg.mixing_zone_radius_m:.0f} m and "
+             f"{_reg.area_above_threshold_km2:.3f} km2 - and reaches that domain's edge as well "
+             f"({_reg.edge_margin_cells:.0f} cell of margin). Neither domain contains this plume. "
+             f"The honest statement is therefore a floor rather than a range: the {_thr} psu "
+             f"contour extends AT LEAST {_reg.mixing_zone_radius_m:.0f} m from the diffuser, at "
+             f"least {_reg.mixing_zone_radius_m / _mzr:.0f} times the {_mzr:.0f} m mixing zone, and "
+             f"where it finally closes is not resolved by this study. What is not in doubt is the "
+             f"breach: the tightest bound available already exceeds the mixing zone by "
+             f"{_env.mixing_zone_radius_m / _mzr:.0f} times, so no plausible refinement of the "
+             f"extent makes phase 2 compliant. Bounding it properly needs a purpose-sized domain "
+             f"(section 10), and that should be done before any phase-2 design is fixed - not to "
+             f"decide compliance, which is already decided, but to size the impact.")
         para(f"Consequence. The phase-1 RO discharge, which is the discharge the plant is being "
              f"built for, complies comfortably: the threshold is not exceeded anywhere and the "
              f"mixing-zone radius is 0 m. The phase-2 saturated cavern brine, discharged through "
@@ -634,6 +695,27 @@ if VSUM:
            f"the bed. It is not corrected by tuning, since raising the rise height would "
            f"require reducing entrainment and would degrade the jet-dilution and return-point "
            f"dilution agreement above.")
+_p2v = RESULTS.get("phase2_mz")
+if _p2v is not None:
+    _ev = _p2v[_p2v.tide == "spring-neap envelope"].iloc[0]
+    _rv = _p2v[_p2v.tide.str.startswith("regional")].iloc[0]
+    _MZL = C.THRESHOLDS["mixing_zone_radius_m"]
+    bullet(f"Domain sufficiency for phase 2 (a stated limitation, not a validated result). The "
+           f"transport model holds each domain edge at the background salinity. The phase-1 RO "
+           f"plume decays hundreds of metres inside the domain, so that boundary never touches "
+           f"it and every phase-1 number in this report is domain-independent. The phase-2 cavern "
+           f"plume is not: it reaches to within {_ev.edge_margin_cells:.0f} cells of the 2.5 km "
+           f"assessment-domain edge ({_ev.mixing_zone_radius_m:.0f} m radius, "
+           f"{_ev.area_above_threshold_km2:.3f} km2) AND to within {_rv.edge_margin_cells:.0f} "
+           f"cell of the 7.2 km regional-domain edge ({_rv.mixing_zone_radius_m:.0f} m, "
+           f"{_rv.area_above_threshold_km2:.3f} km2). Neither domain contains it, so both sets of "
+           f"figures are lower bounds and the phase-2 extent is NOT bounded above by this study. "
+           f"It is reported as a floor - at least {_rv.mixing_zone_radius_m:.0f} m, at least "
+           f"{_rv.mixing_zone_radius_m / _MZL:.0f} times the mixing zone - and a purpose-sized "
+           f"domain, fine enough to resolve the plume over its whole footprint, is required to "
+           f"size the impact. That study would refine the number; it cannot rescue compliance, "
+           f"since even the tightest bound exceeds the mixing zone by "
+           f"{_ev.mixing_zone_radius_m / _MZL:.0f} times.")
 add_section_figs("Validation")
 add_table_from_csv(f"{H.CSV_DIR}/V_eos_validation.csv", "Equation-of-state validation.")
 add_table_from_csv(f"{H.CSV_DIR}/V_dense_jet.csv", "Inclined dense-jet dimensionless validation.")
@@ -686,13 +768,15 @@ para("The UBDS solver provides a single, open, physically-validated framework sp
 para(f"The phase-2 saturated cavern brine does not. Two independent regulatory criteria fail for "
      f"it, and they must not be read as caveats to a passing result:")
 if _p2cw is not None and _p2cw.compliant == "No":
+    _clo, _chi = RESULTS.get("phase2_radius_bracket", (0.0, 0.0))
     para(f"(1) Mixing zone. Discharged at full flow through the same diffuser, the 250 psu cavern "
-         f"source exceeds the {_thr} psu seabed threshold out to "
-         f"{_p2cw.mixing_zone_radius_m:.0f} m from the diffuser over "
-         f"{_p2cw.area_above_threshold_km2:.3f} km2 of seabed - about "
-         f"{_p2cw.mixing_zone_radius_m / _mzr:.0f} times the {_mzr:.0f} m regulatory mixing zone "
-         f"(section 5). The 0 m mixing-zone radius reported for the base case is an RO-concentrate "
-         f"result and does not apply to this source.")
+         f"source exceeds the {_thr} psu seabed threshold to at least {_clo:.0f} m from the "
+         f"diffuser on the 2.5 km assessment domain and to at least {_chi:.0f} m on the 7.2 km "
+         f"regional domain - at least {_chi / _mzr:.0f} times the {_mzr:.0f} m regulatory mixing "
+         f"zone (section 5). Both figures are lower bounds, because the plume reaches the edge of "
+         f"both domains and the model holds those edges at background salinity; the true extent is "
+         f"larger than either. The 0 m mixing-zone radius reported for the base case is an "
+         f"RO-concentrate result and does not apply to this source.")
 para(f"(2) Intake recirculation. The {_site_dist:.0f} m outfall meets the {_CRIT} ppt criterion "
      f"for the phase-1 RO concentrate at every distance screened (worst cell {_ro_worst:.3f} ppt), "
      f"but no siting inside {_cav_min_ok if _cav_min_ok else -1:.0f} m meets it for the cavern "

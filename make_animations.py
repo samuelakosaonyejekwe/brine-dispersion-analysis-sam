@@ -79,8 +79,13 @@ def capture_transport_frames(field, tide, brine, sc, n_layers=9, n_frames=48):
         idx = min(int(np.searchsorted(t_seq - t_seq[0], phase * tspan)), len(t_seq) - 1)
         model.step(u_seq[idx], v_seq[idx], dt)
         if t >= cap_start and k % cap_every == 0:
+            # phase is (t mod T)/T, and the captured cycle does not start at phase 0,
+            # so labelling panels with phase*T made the filmstrip read 6.4, 8.7, 11.2,
+            # 1.0, 3.5, 6.0 h - chronological frames with backwards-looking labels.
+            # Carry elapsed time within the captured cycle, which is monotonic.
             frames.append(dict(S=model.S[0].copy(), u=u_seq[idx].copy(),
-                               v=v_seq[idx].copy(), phase=phase))
+                               v=v_seq[idx].copy(), phase=phase,
+                               t_h=(t - cap_start) / 3600.0))
     return frames, g, X, Y, (ox, oy), rnf.impact_salinity
 
 
@@ -170,7 +175,7 @@ def filmstrip(frames, g, X, Y, outfall, title, fname, zoom=450, n=6):
                   color="#1b2a4a", scale=12, width=0.004, alpha=0.8)
         R._outfall_marker(ax, outfall, C.THRESHOLDS["mixing_zone_radius_m"])
         ax.set_xlim(ox - zoom, ox + zoom); ax.set_ylim(oy - zoom, oy + zoom)
-        ax.set_title(f"t = {fr['phase']*12.42:.1f} h", fontsize=9, color=viz.INK)
+        ax.set_title(f"t = {fr['t_h']:.1f} h", fontsize=9, color=viz.INK)
         ax.set_aspect("equal"); ax.tick_params(labelsize=7)
     path = f"{H.FIG_DIR}/{fname}"
     fig.savefig(path, dpi=130, bbox_inches="tight"); plt.close(fig)

@@ -151,19 +151,29 @@ TIDE = dict(
 # ===========================================================================
 # 5.  COMPUTATIONAL DOMAIN, MESH & MODEL SETUP
 # ===========================================================================
-# Medium-field (high-resolution) domain centred on the outfall
+# Both domains are WINDOWS onto one site (see case_geometry).  (x0_m, y0_m) is
+# the south-west corner of the window in site coordinates and outfall_xy is the
+# diffuser, also in site coordinates - so it is the SAME point in both, and the
+# regional domain genuinely contains the medium-field one.
+#
+# Medium-field (high-resolution) assessment domain
 MEDIUM_FIELD = dict(
     Lx_m=2500.0, Ly_m=2500.0,        # domain size
     dx_m=25.0, dy_m=25.0,            # base resolution (refined near outfall)
     refine_near_outfall_m=5.0,       # nominal near-diffuser resolution (doc)
-    outfall_xy=(1250.0, 1300.0),     # diffuser midpoint in domain coords
+    x0_m=0.0, y0_m=0.0,              # window origin (defines the site grid)
+    outfall_xy=(1250.0, 1300.0),     # diffuser midpoint, site coords (826 m offshore)
     n_sigma_layers=9,
 )
-# Far-field (regional) domain
+# Far-field (regional) domain.  Same site, same diffuser, 7.2 km of room.  The
+# window is centred alongshore on the diffuser so the plume - which runs N-S on
+# the tidal axis - has 3.6 km in each direction instead of being clipped by the
+# boundary, which is held at ambient salinity.
 FAR_FIELD = dict(
     Lx_m=7200.0, Ly_m=7200.0,
     dx_m=60.0, dy_m=60.0,
-    outfall_xy=(3600.0, 3900.0),
+    x0_m=0.0, y0_m=-2300.0,
+    outfall_xy=(1250.0, 1300.0),
     n_sigma_layers=4,
 )
 

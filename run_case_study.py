@@ -33,11 +33,23 @@ os.makedirs(H.CSV_DIR, exist_ok=True)
 H.reset_artifacts()
 RESULTS = {}
 
-# place the outfall a realistic distance off the bay shore in each domain
-C.MEDIUM_FIELD["outfall_xy"] = CG.outfall_position(
-    C.MEDIUM_FIELD["Lx_m"], C.MEDIUM_FIELD["Ly_m"], C.AMBIENT["offshore_distance_m"], 0.52)
-C.FAR_FIELD["outfall_xy"] = CG.outfall_position(
-    C.FAR_FIELD["Lx_m"], C.FAR_FIELD["Ly_m"], C.AMBIENT["offshore_distance_m"], 0.54)
+# Status colours, reserved for compliance state and never reused as series hues.
+CRIT = "#d1495b"        # exceedance / non-compliant
+OKBAND = "#3a9278"      # the compliant region
+
+# ONE diffuser, at one place on one seabed, shared by both domains.
+#
+# Previously the position was derived per-domain from domain fractions. Both
+# domains did put the diffuser 850 m offshore in ~18 m of water - but because
+# the coastline, island, headland and shallow bank were all placed at fractions
+# of the domain, the seabed AROUND the diffuser differed between them: the bank
+# that drives the local eddy sat 371 m from the diffuser in the 2.5 km domain and
+# 997 m away in the 7.2 km one. They were two different sites, so the regional
+# model could not act as a check on the assessment model. The geometry is now
+# absolute (case_geometry), so this single point means the same thing in both.
+_OUTFALL = CG.outfall_position(C.AMBIENT["offshore_distance_m"], 1300.0)
+C.MEDIUM_FIELD["outfall_xy"] = _OUTFALL
+C.FAR_FIELD["outfall_xy"] = _OUTFALL
 
 # tide states -> phase lag (calibrated to peak current at outfall)
 TIDE_LAG = {"neap": 3.0, "spring": 6.0}
@@ -56,7 +68,8 @@ def run_hydro_state(field, label):
     os.makedirs("outputs/cache", exist_ok=True)
     cache = f"outputs/cache/hydro_{field}_{label}.npz"
     grid_c, Xc, Yc = build_bathymetry(fld["Lx_m"], fld["Ly_m"], dxc, dxc,
-                                      fld["outfall_xy"])
+                                      fld["outfall_xy"],
+                                      x0=fld["x0_m"], y0=fld["y0_m"])
     if os.path.exists(cache):
         d = np.load(cache)
         return dict(grid=grid_c, X=Xc, Y=Yc, u=d["u"], v=d["v"], eta=d["eta"],
@@ -128,10 +141,8 @@ def _draw_basemap(ax, grid, X, Y, labels=False):
         ax.contour(X, Y, hraw, levels=[0.0], colors=["#8a6d3b"],
                    linewidths=1.4, zorder=5)
     if labels:
-        Lx = grid.nx * grid.dx; Ly = grid.ny * grid.dy
         x0, x1 = ax.get_xlim(); y0, y1 = ax.get_ylim()
-        for key, (name, fx, fy) in CG.FEATURES.items():
-            px, py = fx * Lx, fy * Ly
+        for key, (name, px, py) in CG.FEATURES.items():   # absolute site coords
             if x0 <= px <= x1 and y0 <= py <= y1:      # only label what is in view
                 ax.text(px, py, name, fontsize=8.5, style="italic",
                         color="#5b4a2f", ha="center", va="center", zorder=7,
@@ -160,12 +171,16 @@ def plot_bathy(grid, X, Y, title, fname, section, outfall_xy=None,
             ax.annotate(s["name"], (sx, sy), textcoords="offset points",
                         xytext=(6, 5), fontsize=9, color="#1b2a4a", weight="bold")
     if zones:
-        # medium & far field nested boxes
+        # The medium-field domain, drawn at its true place in site coordinates.
+        # It is a genuine sub-window of the regional domain, so this box means
+        # what it says. The label hangs OUTSIDE the box (above its top edge) so it
+        # cannot be clipped by the box or collide with the coastline inside it.
         mf = C.MEDIUM_FIELD
-        ax.add_patch(plt.Rectangle((outfall_xy[0]-mf["Lx_m"]/2, outfall_xy[1]-mf["Ly_m"]/2),
-                     mf["Lx_m"], mf["Ly_m"], fill=False, ec="#d1495b", lw=2, ls="-"))
-        ax.text(outfall_xy[0]-mf["Lx_m"]/2+60, outfall_xy[1]+mf["Ly_m"]/2-120,
-                "Medium-field zone", color="#d1495b", weight="bold", fontsize=9)
+        ax.add_patch(plt.Rectangle((mf["x0_m"], mf["y0_m"]), mf["Lx_m"], mf["Ly_m"],
+                     fill=False, ec="#d1495b", lw=2, ls="-", zorder=6))
+        ax.text(mf["x0_m"] + mf["Lx_m"] / 2, mf["y0_m"] + mf["Ly_m"] + 90,
+                "Medium-field assessment domain (25 m)", color="#d1495b",
+                weight="bold", fontsize=9, ha="center", va="bottom", zorder=7)
     ax.set_aspect("equal"); ax.legend(loc="upper left", framealpha=0.92, fontsize=8)
     p = H.register("figure", viz.save(fig, f"{H.FIG_DIR}/{fname}"), title, section)
     return p
@@ -225,9 +240,16 @@ def plot_salinity_field(X, Y, S2d, title, fname, section, outfall_xy,
     dxg = float(abs(X[0, 1] - X[0, 0])); dyg = float(abs(Y[1, 0] - Y[0, 0]))
     area_thr = float(np.count_nonzero(S2d >= threshold)) * dxg * dyg / 1e6
     area_05 = float(np.count_nonzero(S2d >= s_bg + 0.5)) * dxg * dyg / 1e6
+    # A bare "0.000 km2" reads as a result. On a coarse grid it is usually a
+    # DETECTION FLOOR: one cell is the smallest area that can be resolved, so any
+    # footprint below it collapses to exactly zero. Say so on the figure, with the
+    # cell size, so the zero can never be mistaken for "no effect".
+    cell_km2 = dxg * dyg / 1e6
+    def _area(a):
+        return f"{a:.3f} km²" if a > 0 else f"0 - below the {cell_km2:.4f} km² cell"
     info = (f"max = {smax:.1f} psu\n"
-            f"area >{threshold:.0f} psu = {area_thr:.3f} km²\n"
-            f"area >+0.5 psu = {area_05:.3f} km²")
+            f"area >{threshold:.1f} psu = {_area(area_thr)}\n"
+            f"area >+0.5 psu = {_area(area_05)}")
     if mean_uv is not None:
         info += f"\nmean current = {np.hypot(*mean_uv):.2f} m/s"
     ax.text(0.985, 0.015, info, transform=ax.transAxes, ha="right", va="bottom",
@@ -389,18 +411,24 @@ def part_A_nearfield():
             cb = fig.colorbar(lc, ax=axL, shrink=0.8)
             cb.set_label("Salinity (psu)", fontsize=12); cb.ax.tick_params(labelsize=11)
             axL.grid(True, color=viz.GRIDC, alpha=0.5)
-            # RIGHT: dilution (solid) and salinity (dashed) vs distance
-            axR2 = axR.twinx()
+            # RIGHT: dilution vs distance, one curve per tidal state.
+            # The dashed salinity curves that used to share a twin axis here were the
+            # same data - salinity is a fixed function of dilution - so they doubled
+            # the ink and implied two independent measurements. A secondary psu axis
+            # was tried instead, but the transform is a reciprocal: every salinity
+            # tick above ~40 psu maps into the lowest few percent of a linear dilution
+            # axis and the labels pile up illegibly. Salinity is already carried twice
+            # over - the left panel colours the trajectory by it, and the legend gives
+            # it at seabed impact, which is the value that matters. So: one axis.
             for ts in C.TIDAL_STATES:
                 r = traj_store[(bn, sc["id"], ts["label"])]
                 axR.plot(r.s, r.dilution, color=tide_colors[ts["label"]], lw=2.4,
-                         label=f"{ts['label']}: x{r.impact_dilution:.0f}, {r.impact_salinity:.1f} psu")
-                axR2.plot(r.s, r.salinity, color=tide_colors[ts["label"]], lw=1.4, ls="--", alpha=0.7)
+                         label=f"{ts['label']}: x{r.impact_dilution:.0f} at impact, "
+                               f"{r.impact_salinity:.1f} psu")
             axR.set_xlabel("Distance along plume centreline (m)", fontsize=13)
-            axR.set_ylabel("Dilution S/S0  (solid)", fontsize=13)
-            axR2.set_ylabel("Centreline salinity, psu  (dashed)", color="#5b4a2f", fontsize=13)
-            axR.set_title("Dilution & salinity vs distance", fontsize=14)
-            axR.tick_params(labelsize=12); axR2.tick_params(labelsize=12)
+            axR.set_ylabel("Dilution S/S0", fontsize=13)
+            axR.set_title("Dilution along the plume centreline", fontsize=14)
+            axR.tick_params(labelsize=12)
             leg = axR.legend(title="Tidal velocity (seabed values)", fontsize=11)
             leg.get_title().set_fontsize(11)
             axR.grid(True, color=viz.GRIDC, alpha=0.5)
@@ -453,23 +481,47 @@ def part_A2_angle_opt(diff):
     d2 = pd.DataFrame(rows)
     H.write_csv(d2, "A2_port_angle_optimisation.csv",
                 "Effect of diffuser port discharge angle on near-field dilution (300 m3/hr, neap).", sec)
-    fig, ax = viz.new_ax((7, 5), "Diffuser port-angle optimisation",
+    fig, ax = viz.new_ax((7.4, 5), "Diffuser port-angle optimisation",
                          "Port discharge angle (deg from horizontal)", "Seabed dilution (S/S0)")
-    ax.plot(d2.port_angle_deg, d2.dilution, "-o", color="#2a6f97", lw=2.4, ms=8)
-    ax2 = ax.twinx()
-    ax2.plot(d2.port_angle_deg, d2.seabed_salinity_psu, "--s", color="#d1495b", lw=2)
-    ax2.set_ylabel("Seabed salinity (psu)", color="#d1495b")
-    ax2.tick_params(axis="y", colors="#d1495b")
+    ax.plot(d2.port_angle_deg, d2.dilution, "-o", color="#2a6f97", lw=2.4, ms=8, zorder=3)
+    # Seabed salinity was drawn as a second series on a twin y-axis. It is not a
+    # second measurement: S = Sa + (S0 - Sa)/dilution exactly, so the twin axis
+    # plotted the same data twice and invited a reader to see a correlation between
+    # two curves that are algebraically the same curve. One series, and a secondary
+    # axis that simply re-labels it in psu.
+    _sax = ax.secondary_yaxis("right", functions=(_dil_to_psu, _psu_to_dil))
+    _sax.set_ylabel("Seabed salinity (psu) — the same data, re-labelled")
+    best = d2.loc[d2.dilution.idxmax()]
+    ax.annotate(f"optimum {best.port_angle_deg:.0f}°\nx{best.dilution:.0f}  ({best.seabed_salinity_psu:.2f} psu)",
+                (best.port_angle_deg, best.dilution), xytext=(-12, -46),
+                textcoords="offset points", ha="center", fontsize=10,
+                fontweight="bold", color=viz.INK,
+                arrowprops=dict(arrowstyle="-|>", color=viz.INK, lw=1.2))
+    ax.set_ylim(80, 132)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/A2_angle_opt.png"),
-               "Diffuser port-angle optimisation: dilution and seabed salinity vs discharge angle.", sec)
+               "Diffuser port-angle optimisation: seabed dilution vs port discharge angle. The "
+               "right-hand axis re-labels the same curve as seabed salinity, which is a fixed "
+               "function of dilution, not an independent measurement.", sec)
     RESULTS["angle_opt"] = d2
     return d2
+
+
+def _dil_to_psu(D):
+    Sa = C.AMBIENT["background_salinity_psu"]; S0 = C.BRINE["ro_salinity_psu"]
+    D = np.clip(np.asarray(D, dtype=float), 1.0, None)
+    return Sa + (S0 - Sa) / D
+
+
+def _psu_to_dil(S):
+    Sa = C.AMBIENT["background_salinity_psu"]; S0 = C.BRINE["ro_salinity_psu"]
+    S = np.clip(np.asarray(S, dtype=float), Sa + 1e-9, None)
+    return (S0 - Sa) / (S - Sa)
 
 
 def fine_grid(field="medium"):
     fld = C.MEDIUM_FIELD if field == "medium" else C.FAR_FIELD
     g, X, Y = build_bathymetry(fld["Lx_m"], fld["Ly_m"], fld["dx_m"], fld["dy_m"],
-                               fld["outfall_xy"])
+                               fld["outfall_xy"], x0=fld["x0_m"], y0=fld["y0_m"])
     return g, X, Y, fld
 
 
@@ -583,12 +635,18 @@ def part_B_hydro():
         spd_all = np.hypot(f["u"], f["v"])
         vmean = f["v"].mean(axis=(1, 2))
         i_flood = int(np.argmax(vmean)); i_ebb = int(np.argmin(vmean))
+        # One colour scale across both phases so flood and ebb are comparable, and
+        # topped at the actual peak speed. A fixed vmax of 0.8 m/s clipped the spring
+        # jet (which reaches ~0.95 m/s) into a single flat red mass, hiding the very
+        # structure - the channel core and the headland eddy - the figure is for.
+        vmax = float(np.ceil(max(np.hypot(f["u"][i], f["v"][i]).max()
+                                 for i in (i_flood, i_ebb)) * 10) / 10)
         for idx, phase in [(i_flood, "flood"), (i_ebb, "ebb")]:
             sp = np.hypot(f["u"][idx], f["v"][idx])
             fig, ax = viz.new_ax((7.4, 6.6), f"Tidal flow field - {phase} ({lab})",
                                  "Easting (m)", "Northing (m)")
             pc = ax.pcolormesh(X, Y, sp, cmap=viz.VEL_CMAP, shading="auto",
-                               vmin=0, vmax=0.8)
+                               vmin=0, vmax=vmax)
             sk2 = max(1, g.nx // 26)
             ax.quiver(X[::sk2, ::sk2], Y[::sk2, ::sk2], f["u"][idx][::sk2, ::sk2],
                       f["v"][idx][::sk2, ::sk2], color="#1b2a4a", scale=10, width=0.0028)
@@ -710,7 +768,13 @@ def vertical_profiles_plot(out, title, fname, sec):
     mean, lo, hi = sals.mean(axis=0), sals.min(axis=0), sals.max(axis=0)
     bed = sals[:, 0]
 
-    fig, ax = viz.new_ax((7.6, 4.0), title, "Salinity (psu)", "Height above seabed (m)")
+    # A caption hung below the axes on a tight bounding box grows the canvas rather
+    # than the plot, which left the axes stranded in a large empty page. Reserve the
+    # space in the layout instead, and wrap the caption so it cannot widen the figure.
+    fig, ax = viz.new_ax((8.4, 5.6),
+                         "Vertical salinity profile at the diffuser column\n"
+                         "(neap, saturated cavern brine)",
+                         "Salinity (psu)", "Height above seabed (m)")
     ax.fill_betweenx(mids, lo, hi, color="#0072B2", alpha=0.22, lw=0,
                      label="spread across the four phases")
     ax.plot(mean, mids, "-o", lw=3.0, ms=8, color="#0072B2", mec="white", mew=1.0,
@@ -722,19 +786,19 @@ def vertical_profiles_plot(out, title, fname, sec):
     # The plume is bottom-trapped: above ~5 m the column sits at the background salinity,
     # so a 0-14 m axis squeezes the entire signal into the bottom sliver.
     ax.set_ylim(0, 6)
-    ax.set_title("Vertical salinity profile at the diffuser column\n"
-                 "(neap, saturated cavern brine)",
-                 fontsize=14, color=viz.INK, fontweight="bold")
-    ax.set_xlabel("Salinity (psu)", fontsize=13)
-    ax.set_ylabel("Height above seabed (m)", fontsize=13)
     ax.tick_params(labelsize=12)
     ax.legend(fontsize=10, loc="upper right", framealpha=1.0, borderpad=0.6)
-    _spread = float(np.abs(hi - lo).max())
-    ax.annotate(f"Seabed salinity is {bed.min():.2f} psu at every phase; the widest gap between "
-                f"phases anywhere in the column is {_spread:.2f} psu.",
-                xy=(0.5, -0.30), xycoords="axes fraction", ha="center", va="top",
-                fontsize=11, color=viz.INK)
     ax.grid(True, color=viz.GRIDC, alpha=0.6)
+    # The caption sits INSIDE the axes, in the empty low-salinity/low-height corner.
+    # viz.save writes with bbox_inches="tight", so anything placed outside the axes
+    # grows the saved canvas instead of the plot - which is what previously left this
+    # figure as a small chart marooned in a large white page.
+    _spread = float(np.abs(hi - lo).max())
+    ax.text(0.03, 0.05,
+            f"Seabed salinity is {bed.min():.2f} psu at every phase; the widest\n"
+            f"gap between phases anywhere in the column is {_spread:.2f} psu.",
+            transform=ax.transAxes, ha="left", va="bottom", fontsize=10, color=viz.INK,
+            bbox=dict(fc="white", ec="#c9d3dd", alpha=0.92, pad=4.0), zorder=6)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/{fname}"), title, sec)
     # The four per-phase panels this figure replaces were the only home for the
     # individual phase curves; the mean-and-band plot cannot reproduce them.  Write
@@ -760,20 +824,25 @@ def plot_phase2_flow_sensitivity(dff, thr, mz, d_req, path):
     which is the compliance question. The earlier single-panel version put six
     bars on a nominal axis in input order, which hid the trend and collided the
     caption with the threshold line."""
-    CRIT = "#d1495b"        # project red - every case here fails, so this is a status colour
-    OKBAND = "#3a9278"      # project green - the compliant region
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(12.6, 5.0))
 
     # ---- left: the physics. peak salinity vs per-port flow ------------------
+    # The y-axis reaches down to the ambient background so the compliant band has
+    # real height on the page. Clipping it just above the threshold (as the first
+    # version did) squeezed the band to a sliver and left the caption pointing at
+    # something the reader could not see.
     d = dff.sort_values("per_port_m3hr")
-    axL.axhspan(35.0, thr, color=OKBAND, alpha=0.10, zorder=0)
+    bg = C.AMBIENT["background_salinity_psu"]
+    axL.axhspan(bg - 0.3, thr, color=OKBAND, alpha=0.18, zorder=0)
     axL.axhline(thr, color=viz.INK, ls="--", lw=1.8, zorder=2)
-    # "no case reaches it" would be ambiguous: the seabed must stay BELOW this line,
-    # and every case sits far above it. Say which side compliance is on.
-    axL.annotate(f"{thr} psu limit — compliance means staying in the shaded band. No case does.",
-                 xy=(0.5, thr), xycoords=("axes fraction", "data"),
-                 xytext=(0, -13), textcoords="offset points",
-                 ha="center", va="top", fontsize=9, color=viz.INK)
+    # One label, not two: an earlier version put "COMPLIANT" and "no case lands in
+    # it" as separate annotations at nearly the same height and they overprinted.
+    # "No case reaches the line" would also be ambiguous - the seabed must stay
+    # BELOW it - so the label says which side compliance is on.
+    axL.annotate(f"COMPLIANT band: at or below {thr} psu — no case lands in it",
+                 xy=(0.02, (bg + thr) / 2), xycoords=("axes fraction", "data"),
+                 ha="left", va="center", fontsize=9, fontweight="bold",
+                 color="#26674f", zorder=2)
     axL.plot(d.per_port_m3hr, d.peak_seabed_salinity_psu, "-", color=CRIT, lw=1.8, zorder=3)
     axL.plot(d.per_port_m3hr, d.peak_seabed_salinity_psu, "o", color=CRIT, ms=9,
              mec="white", mew=2.0, zorder=4)
@@ -799,12 +868,18 @@ def plot_phase2_flow_sensitivity(dff, thr, mz, d_req, path):
     axL.set_xlabel("Flow per port (m3/hr)  —  the variable that sets near-field dilution")
     axL.set_ylabel("Peak seabed salinity (psu)")
     axL.set_xlim(40, 385)
-    axL.set_ylim(37.0, 55.5)
+    axL.set_ylim(bg - 0.3, 55.5)
 
     # ---- right: the compliance question. radius vs the allowance ------------
+    # Hatched bars are truncated by the 2.5 km domain (the model holds its edge at
+    # ambient salinity), so they are lower bounds. Marking them keeps a clipped
+    # number from being read as a converged one.
     b = dff.sort_values("mixing_zone_radius_m", ascending=False)
     ys = np.arange(len(b))
-    axR.barh(ys, b.mixing_zone_radius_m, height=0.62, color=CRIT, zorder=3)
+    blim = (b.domain_limited != "No").values if "domain_limited" in b else np.zeros(len(b), bool)
+    axR.barh(ys, b.mixing_zone_radius_m, height=0.62, color=CRIT, zorder=3,
+             edgecolor="#8c1c2a", linewidth=1.0,
+             hatch=["//" if L else "" for L in blim])
     axR.axvline(mz, color=viz.INK, ls="--", lw=1.8, zorder=4)
     # The allowance label needs its own space: outside the axes it collided with the
     # title, and inside the data band it sat on top of the first bar. Reserve a blank
@@ -812,18 +887,22 @@ def plot_phase2_flow_sensitivity(dff, thr, mz, d_req, path):
     axR.annotate(f"{mz:.0f} m regulatory allowance", xy=(mz, -0.72),
                  xytext=(7, 0), textcoords="offset points", ha="left", va="center",
                  fontsize=9, color=viz.INK)
-    for y, v in zip(ys, b.mixing_zone_radius_m):
-        axR.annotate(f"{v:.0f} m", (v, y), xytext=(6, 0), textcoords="offset points",
-                     ha="left", va="center", fontsize=10, fontweight="bold",
-                     color=viz.INK, zorder=5)
+    for y, v, L in zip(ys, b.mixing_zone_radius_m, blim):
+        axR.annotate(f"{'>=' if L else ''}{v:.0f} m", (v, y), xytext=(6, 0),
+                     textcoords="offset points", ha="left", va="center",
+                     fontsize=10, fontweight="bold", color=viz.INK, zorder=5)
     axR.set_yticks(ys)
     axR.set_yticklabels([f"{int(f)} m3/hr · {int(n)} port{'' if n == 1 else 's'}"
                          for f, n in zip(b.flow_m3hr, b.n_ports)])
     axR.set_ylim(len(b) - 0.4, -1.05)      # reversed = top-down; the gap holds the label
     axR.set_title(f"Every case exceeds the {mz:.0f} m mixing zone", fontsize=11.5)
     axR.set_xlabel(f"Radius of the {thr} psu seabed contour (m)")
-    axR.set_xlim(0, float(b.mixing_zone_radius_m.max()) * 1.28)
+    axR.set_xlim(0, float(b.mixing_zone_radius_m.max()) * 1.30)
     axR.grid(axis="y", visible=False)
+    if blim.any():
+        axR.annotate("//  hatched: clipped by the 2.5 km domain — a lower bound",
+                     xy=(0.5, -0.155), xycoords="axes fraction", ha="center", va="top",
+                     fontsize=8.5, color=viz.INK)
     fig.tight_layout()
     return viz.save(fig, path)
 
@@ -874,6 +953,16 @@ def part_C_medium(hydro_all):
             f"Maximum seabed salinity - {nl}-layer model (full flow, neap, saturated cavern brine)",
             f"C_layersens_{nl}.png", sec, ox, mz=mz)
     RESULTS["layer_sensitivity"] = {nl: float(sens[nl]["env"][0].max()) for nl in sens}
+    # The peak is nearly layer-independent, but the AREA above the threshold is not,
+    # and the area is the regulatory quantity. Capture it so the report states which
+    # of the two is actually converged instead of assuming both are.
+    _thr0 = C.THRESHOLDS["salinity_threshold_psu"]
+    RESULTS["layer_sensitivity_area"] = {
+        nl: float(metrics.area_above(sens[nl]["env"][0], sens[nl]["grid"].dx,
+                                     sens[nl]["grid"].dy, _thr0) / 1e6) for nl in sens}
+    RESULTS["layer_sensitivity_radius"] = {
+        nl: float(metrics.mixing_zone_radius(sens[nl]["env"][0], sens[nl]["X"][0],
+                                             sens[nl]["Y"][:, 0], ox, _thr0)) for nl in sens}
 
     # --- 9-layer reference run with snapshots (neap) ------------------------
     out9n = run_transport_case("medium", med_n, 9, BRINE_CAVERN, sc3, "spring_neap",
@@ -945,23 +1034,69 @@ def part_C_medium(hydro_all):
     # its medium-field envelope peaks well above the 38.5 psu threshold. Evaluating
     # the same regulatory metric on the cavern envelope is the check the study was
     # missing, and it is the one the phase-2 provision turns on.
+    #
+    # The extent is also DOMAIN-LIMITED, and that has to be measured rather than
+    # assumed. The transport model holds every edge cell at ambient salinity (an
+    # open flushing boundary, transport.py). For the RO plume - which decays
+    # within a few hundred metres - that is exactly right. The cavern plume is a
+    # different animal: it reaches to within a few cells of the medium-field edge,
+    # so the boundary clamp is holding the contour in and the radius/area measured
+    # here are LOWER BOUNDS set by the 2.5 km domain, not converged results. The
+    # regional model (7.2 km, part D) has room and is reported alongside as the
+    # upper end of the bracket.
     thr = C.THRESHOLDS["salinity_threshold_psu"]
     crows = []
     for lbl, env in [("neap", out9n["env"][0]), ("spring", out9s["env"][0]),
                      ("spring-neap envelope", env_sn)]:
         rad = metrics.mixing_zone_radius(env, X[0], Y[:, 0], ox, thr)
+        limited = metrics.is_domain_limited(env, thr)
         crows.append(dict(tide=lbl,
                           peak_seabed_salinity_psu=round(float(env.max()), 2),
                           mixing_zone_radius_m=round(rad, 0),
                           area_above_threshold_km2=round(
                               metrics.area_above(env, g.dx, g.dy, thr) / 1e6, 4),
+                          edge_margin_cells=metrics.boundary_margin_cells(env, thr),
+                          domain_limited="Yes (lower bound)" if limited else "No",
                           regulatory_radius_m=mz,
                           compliant="Yes" if rad <= mz else "No"))
+    # The same metric on the regional (7.2 km) domain, which has room for the plume
+    # to close. Cached so part D does not pay for the run twice.
+    ox_far = C.FAR_FIELD["outfall_xy"]
+    out_cav_far = run_transport_case("far", hydro_all["far_n"], 4, BRINE_CAVERN, sc3,
+                                     "spring_neap", "neap")
+    RESULTS["_far_cav"] = out_cav_far
+    env_far = out_cav_far["env"][0]; g_far = out_cav_far["grid"]
+    rad_far = metrics.mixing_zone_radius(env_far, out_cav_far["X"][0],
+                                         out_cav_far["Y"][:, 0], ox_far, thr)
+    crows.append(dict(tide="regional model (60 m, 7.2 km domain)",
+                      peak_seabed_salinity_psu=round(float(env_far.max()), 2),
+                      mixing_zone_radius_m=round(rad_far, 0),
+                      area_above_threshold_km2=round(
+                          metrics.area_above(env_far, g_far.dx, g_far.dy, thr) / 1e6, 4),
+                      edge_margin_cells=metrics.boundary_margin_cells(env_far, thr),
+                      domain_limited="Yes (lower bound)"
+                                     if metrics.is_domain_limited(env_far, thr) else "No",
+                      regulatory_radius_m=mz,
+                      compliant="Yes" if rad_far <= mz else "No"))
+
     dfc = pd.DataFrame(crows)
     H.write_csv(dfc, "C_phase2_mixing_zone.csv",
                 f"Phase-2 saturated cavern brine at full flow: extent of the {thr} psu threshold "
-                f"exceedance on the seabed, against the {mz:.0f} m regulatory mixing zone.", sec)
+                f"exceedance on the seabed, against the {mz:.0f} m regulatory mixing zone. The "
+                f"transport model holds the domain edge at ambient salinity, so where the contour "
+                f"approaches that edge (edge_margin_cells) the radius and area are lower bounds set "
+                f"by the domain. The 2.5 km assessment domain truncates this plume; the 7.2 km "
+                f"regional domain does not.", sec)
     RESULTS["phase2_mz"] = dfc
+    # Both domains clip this plume, so these are two lower bounds, not a bracket.
+    # The largest of them is the strongest thing the study can honestly say: the
+    # contour reaches AT LEAST this far. It is not an estimate of where it stops.
+    RESULTS["phase2_radius_bracket"] = (
+        float(dfc[dfc.tide == "spring-neap envelope"].mixing_zone_radius_m.iloc[0]),
+        float(rad_far))
+    RESULTS["phase2_all_domains_limited"] = bool(
+        (dfc[dfc.tide.isin(["spring-neap envelope"])
+             | dfc.tide.str.startswith("regional")].domain_limited != "No").all())
 
     # --- is there a cavern flow that DOES comply? ---------------------------
     # The obvious mitigation is to throttle the cavern stream, so test it rather
@@ -985,6 +1120,8 @@ def part_C_medium(hydro_all):
                           mixing_zone_radius_m=round(rad, 0),
                           area_above_threshold_km2=round(
                               metrics.area_above(e, gg.dx, gg.dy, thr) / 1e6, 4),
+                          domain_limited="Yes (lower bound)"
+                                         if metrics.is_domain_limited(e, thr) else "No",
                           compliant="Yes" if rad <= mz else "No"))
     dff = pd.DataFrame(frows)
     H.write_csv(dff, "C_phase2_flow_sensitivity.csv",
@@ -1004,28 +1141,47 @@ def part_C_medium(hydro_all):
                f"momentum. The constraint is dilution, not load: a {BRINE_CAVERN[0]:.0f} psu source "
                f"needs ~{d_req:.0f}:1 to reach {thr} psu and the diffuser delivers 14-50:1.", sec)
 
-    worst = dfc.loc[dfc.mixing_zone_radius_m.idxmax()]
-    fig, ax = viz.new_ax((7.5, 5),
-        f"Phase-2 cavern brine: {thr} psu exceedance vs the {mz:.0f} m mixing zone",
-        "Tidal state", f"Radius of the {thr} psu contour from the diffuser (m)")
+    # Bars are drawn on a log axis because the quantity being compared spans two
+    # decades (100 m allowance vs a kilometre-scale contour); on a linear axis the
+    # allowance is an invisible sliver. Domain-limited bars are hatched and carry a
+    # ">=" so a truncated lower bound can never be read as a converged radius.
+    fig, ax = viz.new_ax((9.0, 5.2),
+        f"Phase-2 cavern brine: the {thr:.1f} psu seabed contour vs the {mz:.0f} m mixing zone",
+        "", f"Radius of the {thr:.1f} psu contour from the diffuser (m, log scale)")
     xs = np.arange(len(dfc))
-    ax.bar(xs, dfc.mixing_zone_radius_m, width=0.55, color="#C1121F",
-           edgecolor="#5c0a12", linewidth=1.2, zorder=3)
-    for x, v in zip(xs, dfc.mixing_zone_radius_m):
-        ax.annotate(f"{v:.0f} m", (x, v), xytext=(0, 4), textcoords="offset points",
-                    ha="center", va="bottom", fontsize=11, fontweight="bold",
-                    color=viz.INK, zorder=4)
+    lim = (dfc.domain_limited != "No").values
+    bars = ax.bar(xs, dfc.mixing_zone_radius_m, width=0.6, zorder=3,
+                  color=[CRIT if L else "#8c1c2a" for L in lim],
+                  edgecolor="#5c0a12", linewidth=1.2,
+                  hatch=["//" if L else "" for L in lim])
+    for x, v, L in zip(xs, dfc.mixing_zone_radius_m, lim):
+        ax.annotate(f"{'>=' if L else ''}{v:.0f} m", (x, v), xytext=(0, 5),
+                    textcoords="offset points", ha="center", va="bottom",
+                    fontsize=11, fontweight="bold", color=viz.INK, zorder=4)
     ax.axhline(mz, color="#0072B2", ls="--", lw=2.6, zorder=2,
                label=f"{mz:.0f} m regulatory mixing zone")
-    ax.set_xticks(xs); ax.set_xticklabels(dfc.tide)
-    ax.set_ylim(0, float(dfc.mixing_zone_radius_m.max()) * 1.25)
+    ax.bar(0, 0, color=CRIT, hatch="//", edgecolor="#5c0a12",
+           label="domain-limited: a lower bound, not a converged radius")
+    ax.set_yscale("log")
+    ax.set_ylim(50, float(dfc.mixing_zone_radius_m.max()) * 3.0)
+    ax.set_xticks(xs)
+    ax.set_xticklabels([t.replace(" (", "\n(") for t in dfc.tide], fontsize=9)
     ax.legend(fontsize=9, loc="upper left", framealpha=1.0)
+    ax.annotate(
+        "Both domains hold their edge at ambient salinity, and this plume reaches both edges - so\n"
+        "every hatched bar is a floor, not a measurement. The contour reaches AT LEAST the largest\n"
+        "of them. Where it actually stops is not bounded by this study; the breach is not in doubt.",
+        xy=(0.5, -0.19), xycoords="axes fraction", ha="center", va="top",
+        fontsize=9, color=viz.INK)
+    lo, hi = RESULTS["phase2_radius_bracket"]
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/C_phase2_mixing_zone.png"),
                f"Phase-2 saturated cavern brine at full flow: the {thr} psu seabed threshold is "
-               f"exceeded out to {worst.mixing_zone_radius_m:.0f} m from the diffuser on the "
-               f"{worst.tide} envelope, over {worst.area_above_threshold_km2:.3f} km2 of seabed - "
-               f"far outside the {mz:.0f} m regulatory mixing zone. The RO concentrate of phase 1 "
-               f"does not exceed the threshold anywhere.", sec)
+               f"exceeded to at least {lo:.0f} m from the diffuser on the 25 m assessment domain "
+               f"and to at least {hi:.0f} m on the 7.2 km regional domain - at least "
+               f"{hi/mz:.0f} times the {mz:.0f} m regulatory mixing zone. Both domains hold their "
+               f"boundary at ambient salinity and this plume reaches both, so both figures are "
+               f"lower bounds and the true extent is larger than either. The RO concentrate of "
+               f"phase 1 does not exceed the threshold anywhere.", sec)
     return dict(out9n=out9n, out9s=out9s, sens=sens)
 
 
@@ -1042,7 +1198,7 @@ def part_D_far(hydro_all):
     far_levels = np.round(np.concatenate([
         np.arange(36.5, 38.01, 0.25), np.arange(38.5, 41.01, 0.5)]), 2)
 
-    far_zoom = ([ox[0]-1150, ox[0]+2600], [ox[1]-2200, ox[1]+2200])
+    far_zoom = ([ox[0]-1150, ox[0]+2600], [ox[1]-3300, ox[1]+3300])
     far_runs = {}
     fpanels = []
     for sc in C.SCENARIOS:
@@ -1061,19 +1217,20 @@ def part_D_far(hydro_all):
     plot_salinity_field(out_s["X"], out_s["Y"], out_s["env"][0],
         "Far-field maximum seabed salinity - spring, full flow (RO brine)",
         "D_far_spring_S3.png", sec, ox, mz=mz, levels=far_levels,
-        zoom_box=([ox[0]-1150, ox[0]+2600], [ox[1]-2200, ox[1]+2200]))
+        zoom_box=far_zoom)
     # spring-neap envelope
     env_sn = np.maximum(far_runs["S3"]["env"][0], out_s["env"][0])
     plot_salinity_field(out_s["X"], out_s["Y"], env_sn,
         "Far-field maximum seabed salinity - spring-neap envelope (full flow, RO brine)",
         "D_far_springneap.png", sec, ox, mz=mz, levels=far_levels,
-        zoom_box=([ox[0]-1150, ox[0]+2600], [ox[1]-2200, ox[1]+2200]))
-    # cavern worst case
-    out_cav = run_transport_case("far", far_n, 4, BRINE_CAVERN, C.SCENARIOS[-1], "spring_neap", "neap")
+        zoom_box=far_zoom)
+    # cavern worst case - already run in part C for the mixing-zone bracket
+    out_cav = RESULTS.get("_far_cav") or run_transport_case(
+        "far", far_n, 4, BRINE_CAVERN, C.SCENARIOS[-1], "spring_neap", "neap")
     plot_salinity_field(out_cav["X"], out_cav["Y"], out_cav["env"][0],
         "Far-field maximum seabed salinity - phase-2 saturated cavern brine (worst case)",
         "D_far_cavern.png", sec, ox, mz=mz,
-        zoom_box=([ox[0]-1150, ox[0]+2600], [ox[1]-2200, ox[1]+2200]))
+        zoom_box=far_zoom)
 
     # --- influence-area & diffusion-distance table ---------------------------
     # These metrics are resolved on the 25 m medium grid, not the 60 m regional
@@ -1388,12 +1545,29 @@ def part_G_csv_plots():
 
     # validation skill bar
     sk = RESULTS["skill"]
-    fig, ax = viz.new_ax((8, 4.6), "Model skill vs the synthetic current reference, by station",
-                         "Station", "Willmott index of agreement (d)")
-    sub = sk[sk.tide == "spring"]
-    ax.bar(sub.station, sub.willmott_d, color="#3a9278")
-    ax.axhline(0.9, color="#d1495b", ls="--", label="d = 0.90")
-    ax.set_ylim(0, 1.05); ax.legend()
+    # On a 0-1 axis every bar pinned to the top and the chart said nothing: d spans
+    # 0.997-0.999. Zoom to the band the data actually occupies and show NSE beside
+    # it, which has the real spread (0.987-0.996), so the figure carries information
+    # instead of six identical rectangles.
+    fig, ax = viz.new_ax((8.6, 4.8), "Model skill vs the synthetic current reference (spring)",
+                         "Station", "Skill score")
+    sub = sk[sk.tide == "spring"].sort_values("station")
+    xs = np.arange(len(sub)); w = 0.36
+    ax.bar(xs - w / 2, sub.willmott_d, width=w, color="#2a6f97", label="Willmott index d", zorder=3)
+    ax.bar(xs + w / 2, sub.nse, width=w, color="#3a9278", label="Nash-Sutcliffe efficiency", zorder=3)
+    for x, v in zip(xs - w / 2, sub.willmott_d):
+        ax.annotate(f"{v:.3f}", (x, v), xytext=(0, 3), textcoords="offset points",
+                    ha="center", fontsize=9, color=viz.INK, zorder=4)
+    for x, v in zip(xs + w / 2, sub.nse):
+        ax.annotate(f"{v:.3f}", (x, v), xytext=(0, 3), textcoords="offset points",
+                    ha="center", fontsize=9, color=viz.INK, zorder=4)
+    ax.set_xticks(xs); ax.set_xticklabels(sub.station)
+    ax.set_ylim(0.980, 1.002)
+    ax.legend(loc="lower right", fontsize=9, framealpha=1.0)
+    ax.annotate("The reference is the model solution plus 3% bias and noise, so these scores\n"
+                "measure that imposed perturbation - they are not agreement with field data.",
+                xy=(0.02, 0.04), xycoords="axes fraction", ha="left", va="bottom",
+                fontsize=8.5, color=viz.INK)
     H.register("figure", viz.save(fig, f"{H.FIG_DIR}/G_skill.png"),
                "Index-of-agreement between the model and the synthetic current reference by station "
                "(spring). The reference is derived from the model solution, so this is not a field "
@@ -1422,12 +1596,18 @@ def _recirc_run(outfall_dist_m, current_label, speed, bearing, capture_ts=False,
     RO concentrate (~37 psu, an excess of ~0.5 psu).  Both must be assessed.
     """
     fld = C.MEDIUM_FIELD
-    g, X, Y = build_bathymetry(fld["Lx_m"], fld["Ly_m"], 50.0, 50.0, fld["outfall_xy"])
+    g, X, Y = build_bathymetry(fld["Lx_m"], fld["Ly_m"], 50.0, 50.0, fld["outfall_xy"],
+                               x0=fld["x0_m"], y0=fld["y0_m"])
     Sa = C.AMBIENT["background_salinity_psu"]
     S0, T0 = brine if brine is not None else BRINE_RO
-    shore_x = 0.10 * fld["Lx_m"]
-    ox = shore_x + outfall_dist_m
+    # Distances are measured from the ACTUAL shoreline on this transect, which the
+    # bay pushes ~175 m seaward of the open-coast easting. Measuring from the
+    # open coast (0.10*Lx) placed every screened outfall 175 m closer to shore
+    # than its label claimed, and the screening drives the outfall-length
+    # recommendation, so the error fed straight into the conclusion.
     oy = fld["Ly_m"] * 0.5
+    shore_x = float(CG.coastline_x(oy))
+    ox = shore_x + outfall_dist_m
     intake_x = shore_x + 300.0                      # intake 300 m from shore
     f = _steady_fields(g, speed, bearing, C.MODEL["tidal_period_s"])
     layers = tr.LayerScheme.from_percent(C.SIGMA_LAYERS[9])
