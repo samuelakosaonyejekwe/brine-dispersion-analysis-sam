@@ -430,11 +430,12 @@ if _p2 is not None:
              f"is consistent with the near-field solution rather than a surprise from it.")
         para(f"Consequence. The phase-1 RO discharge, which is the discharge the plant is being "
              f"built for, complies comfortably: the threshold is not exceeded anywhere and the "
-             f"mixing-zone radius is 0 m. The phase-2 saturated cavern brine, discharged at full "
-             f"flow through the same diffuser, does not comply and cannot be permitted on this "
-             f"design as modelled. Accommodating it would require a materially different discharge "
-             f"arrangement - substantially more ports, a longer diffuser, pre-dilution of the "
-             f"cavern stream, or a lower cavern discharge rate - and that redesign is outside the "
+             f"mixing-zone radius is 0 m. The phase-2 saturated cavern brine, discharged through "
+             f"the same diffuser, does not comply and cannot be permitted on this design as "
+             f"modelled. The flow sensitivity below shows that it cannot be operated into "
+             f"compliance either. Accommodating it would require a fundamentally higher-dilution "
+             f"discharge - a much higher exit velocity through smaller or more numerous ports, or "
+             f"pre-dilution of the cavern stream with seawater - and that redesign is outside the "
              f"scope of this study. The statement that the diffuser accommodates the future cavern "
              f"stream 'without redesign' applies to near-field dilution and water quality, not to "
              f"mixing-zone compliance.")
