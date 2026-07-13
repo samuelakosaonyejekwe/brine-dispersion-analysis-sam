@@ -751,6 +751,83 @@ def vertical_profiles_plot(out, title, fname, sec):
 # ===========================================================================
 #  PART C - MEDIUM-FIELD DISPERSION
 # ===========================================================================
+def plot_phase2_flow_sensitivity(dff, thr, mz, d_req, path):
+    """Two single-axis panels, because the two measures have different scales and
+    different drivers. Left: peak seabed salinity against PER-PORT flow - the
+    variable that actually sets near-field dilution, so the relationship is
+    monotonic and the 'throttling makes it worse' point reads straight off the
+    slope. Right: mixing-zone radius ranked against the regulatory allowance,
+    which is the compliance question. The earlier single-panel version put six
+    bars on a nominal axis in input order, which hid the trend and collided the
+    caption with the threshold line."""
+    CRIT = "#d1495b"        # project red - every case here fails, so this is a status colour
+    OKBAND = "#3a9278"      # project green - the compliant region
+    fig, (axL, axR) = plt.subplots(1, 2, figsize=(12.6, 5.0))
+
+    # ---- left: the physics. peak salinity vs per-port flow ------------------
+    d = dff.sort_values("per_port_m3hr")
+    axL.axhspan(35.0, thr, color=OKBAND, alpha=0.10, zorder=0)
+    axL.axhline(thr, color=viz.INK, ls="--", lw=1.8, zorder=2)
+    # "no case reaches it" would be ambiguous: the seabed must stay BELOW this line,
+    # and every case sits far above it. Say which side compliance is on.
+    axL.annotate(f"{thr} psu limit — compliance means staying in the shaded band. No case does.",
+                 xy=(0.5, thr), xycoords=("axes fraction", "data"),
+                 xytext=(0, -13), textcoords="offset points",
+                 ha="center", va="top", fontsize=9, color=viz.INK)
+    axL.plot(d.per_port_m3hr, d.peak_seabed_salinity_psu, "-", color=CRIT, lw=1.8, zorder=3)
+    axL.plot(d.per_port_m3hr, d.peak_seabed_salinity_psu, "o", color=CRIT, ms=9,
+             mec="white", mew=2.0, zorder=4)
+    # label only the two extremes; the rest is carried by the axis and the table.
+    # Both labels sit to the INSIDE of their point so neither can run off the axes
+    # or collide with the trend annotation in the upper right.
+    lo_, hi_ = d.iloc[0], d.iloc[-1]
+    axL.annotate(f"{lo_.peak_seabed_salinity_psu:.1f} psu",
+                 (lo_.per_port_m3hr, lo_.peak_seabed_salinity_psu),
+                 xytext=(10, 10), textcoords="offset points", ha="left",
+                 fontsize=10, fontweight="bold", color=viz.INK, zorder=5)
+    axL.annotate(f"{hi_.peak_seabed_salinity_psu:.1f} psu",
+                 (hi_.per_port_m3hr, hi_.peak_seabed_salinity_psu),
+                 xytext=(-10, -14), textcoords="offset points", ha="right",
+                 fontsize=10, fontweight="bold", color=viz.INK, zorder=5)
+    # trend annotation lives in the empty upper-right quadrant, clear of the curve
+    axL.annotate("", xy=(0.44, 0.855), xytext=(0.90, 0.855), xycoords="axes fraction",
+                 arrowprops=dict(arrowstyle="-|>", color=CRIT, lw=1.6))
+    axL.annotate("throttling moves you this way:\nslower jet, less entrainment",
+                 xy=(0.67, 0.90), xycoords="axes fraction", ha="center", va="bottom",
+                 fontsize=9, color=CRIT)
+    axL.set_title("Cutting the per-port flow makes the seabed WORSE", fontsize=11.5)
+    axL.set_xlabel("Flow per port (m3/hr)  —  the variable that sets near-field dilution")
+    axL.set_ylabel("Peak seabed salinity (psu)")
+    axL.set_xlim(40, 385)
+    axL.set_ylim(37.0, 55.5)
+
+    # ---- right: the compliance question. radius vs the allowance ------------
+    b = dff.sort_values("mixing_zone_radius_m", ascending=False)
+    ys = np.arange(len(b))
+    axR.barh(ys, b.mixing_zone_radius_m, height=0.62, color=CRIT, zorder=3)
+    axR.axvline(mz, color=viz.INK, ls="--", lw=1.8, zorder=4)
+    # The allowance label needs its own space: outside the axes it collided with the
+    # title, and inside the data band it sat on top of the first bar. Reserve a blank
+    # row above the bars (via the inverted ylim) and put it there.
+    axR.annotate(f"{mz:.0f} m regulatory allowance", xy=(mz, -0.72),
+                 xytext=(7, 0), textcoords="offset points", ha="left", va="center",
+                 fontsize=9, color=viz.INK)
+    for y, v in zip(ys, b.mixing_zone_radius_m):
+        axR.annotate(f"{v:.0f} m", (v, y), xytext=(6, 0), textcoords="offset points",
+                     ha="left", va="center", fontsize=10, fontweight="bold",
+                     color=viz.INK, zorder=5)
+    axR.set_yticks(ys)
+    axR.set_yticklabels([f"{int(f)} m3/hr · {int(n)} port{'' if n == 1 else 's'}"
+                         for f, n in zip(b.flow_m3hr, b.n_ports)])
+    axR.set_ylim(len(b) - 0.4, -1.05)      # reversed = top-down; the gap holds the label
+    axR.set_title(f"Every case exceeds the {mz:.0f} m mixing zone", fontsize=11.5)
+    axR.set_xlabel(f"Radius of the {thr} psu seabed contour (m)")
+    axR.set_xlim(0, float(b.mixing_zone_radius_m.max()) * 1.28)
+    axR.grid(axis="y", visible=False)
+    fig.tight_layout()
+    return viz.save(fig, path)
+
+
 def part_C_medium(hydro_all):
     print("[C] medium-field dispersion ...")
     sec = "Medium-field dispersion"
@@ -919,28 +996,8 @@ def part_C_medium(hydro_all):
     RESULTS["phase2_flow"] = dff
     RESULTS["phase2_dilution_required"] = d_req
 
-    fig, ax = viz.new_ax((8.5, 5),
-        f"Phase-2 cavern brine: throttling the discharge does not help",
-        "Cavern discharge (m3/hr, ports shown)", "Peak seabed salinity (psu)")
-    xs = np.arange(len(dff))
-    ax.bar(xs, dff.peak_seabed_salinity_psu, width=0.55, color="#C1121F",
-           edgecolor="#5c0a12", linewidth=1.2, zorder=3)
-    for x, v, r in zip(xs, dff.peak_seabed_salinity_psu, dff.mixing_zone_radius_m):
-        ax.annotate(f"{v:.1f}\n{r:.0f} m", (x, v), xytext=(0, 4), textcoords="offset points",
-                    ha="center", va="bottom", fontsize=9, fontweight="bold", color=viz.INK, zorder=4)
-    ax.axhline(thr, color="#0072B2", ls="--", lw=2.6, zorder=2,
-               label=f"{thr} psu regulatory threshold")
-    ax.set_xticks(xs)
-    ax.set_xticklabels([f"{int(f)}\n{int(n)} port{'' if n == 1 else 's'}"
-                        for f, n in zip(dff.flow_m3hr, dff.n_ports)])
-    ax.set_ylim(36.0, float(dff.peak_seabed_salinity_psu.max()) * 1.12)
-    ax.legend(fontsize=9, loc="upper left", framealpha=1.0)
-    ax.annotate("Cutting the flow makes it WORSE: less exit momentum -> less entrainment.\n"
-                f"Landing {BRINE_CAVERN[0]:.0f} psu below {thr} psu needs ~{d_req:.0f}:1 dilution; "
-                f"this diffuser gives 14-50:1.",
-                xy=(0.5, 0.06), xycoords="axes fraction", ha="center", va="bottom",
-                fontsize=9, color=viz.INK)
-    H.register("figure", viz.save(fig, f"{H.FIG_DIR}/C_phase2_flow_sensitivity.png"),
+    H.register("figure", plot_phase2_flow_sensitivity(dff, thr, mz, d_req,
+                                                      f"{H.FIG_DIR}/C_phase2_flow_sensitivity.png"),
                f"Phase-2 cavern brine: peak seabed salinity and {thr} psu mixing-zone radius against "
                f"discharge flow and port count. Every case exceeds the threshold, and reducing the "
                f"per-port flow makes the peak worse because near-field dilution is driven by exit "
